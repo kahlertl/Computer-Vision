@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( color_dist )
+find_package( OpenCV REQUIRED )
+add_executable( color_dist color_dist.cpp )
+target_link_libraries( color_dist ${OpenCV_LIBS} )
+set(CMAKE_CXX_FLAGS "-std=c++11")

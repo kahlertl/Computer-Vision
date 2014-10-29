@@ -22,7 +22,8 @@ inline double distance(Vec3b pixel)
 
 static void render()
 {
-    Mat binary_img = Mat::zeros(image.size(), CV_8UC1);
+    // Binary image
+    Mat bin_img = Mat::zeros(image.size(), CV_8UC1);
 
     for (int y = 0; y < image.rows; ++y) {
         for (int x = 0; x < image.cols; ++x) {
@@ -31,30 +32,35 @@ static void render()
 
             if (dist < max_dist) {
                 // cout << "w\n";
-                binary_img.at<uchar>(y,x) = 255;
+                bin_img.at<uchar>(y,x) = 255;
             }
         }
     }
 
-    imshow("Binary map", binary_img);
-
+    // Make a copy of the current grayscale image but expand it to 3 channels.
+    // This step is required because findContours manipulates the image and
+    // we will need the binary image to paint the largest are red (therefore 3 channels).
+    Mat canvas(bin_img.size(), CV_8UC3);
+    cvtColor(bin_img, canvas, CV_GRAY2RGB);
+    
     vector<Vec4i> hierarchy;
     vector<vector<Point> > contours;
-    findContours(binary_img, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_NONE, Point(0,0));
-
-    // Canvas for largest contour
-    Mat drawing = Mat::zeros(binary_img.size(), CV_8UC3);
+    findContours(bin_img, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_NONE, Point(0,0));
 
     if (!contours.empty()) {
-        int i = 0;
         double max_area = 0;
         // index of the contour with the largest area
         int max_i = 0;
+        // index of the current contour we are looking at
+        int i = 0;
 
+        // Search as long there as there is a next contour in the top level
+        // of the hierarchy
         while (i >= 0) {
             double area = contourArea(contours[i]);
             int child = hierarchy[i][2];
 
+            // Subtract the area of all holes
             while (child >= 0) {
                 area -= contourArea(contours[child]);
                 child = hierarchy[child][2];
@@ -68,11 +74,11 @@ static void render()
             // Go to next contour in the top hierarchy level
             i = hierarchy[i][0];
         }
-        // Draw largest contour in red
-        drawContours(drawing, contours, max_i, red, CV_FILLED, 8, hierarchy);
+        // Draw largest contour in red to the canvas
+        drawContours(canvas, contours, max_i, red, CV_FILLED, 8, hierarchy);
     }
 
-    imshow("Contours", drawing);
+    imshow("Largest area", canvas);
 }
 
 static void select_pixel(int event, int x, int y, int flags, void* userdata)

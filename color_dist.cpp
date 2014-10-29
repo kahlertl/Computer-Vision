@@ -28,10 +28,8 @@ static void render()
     for (int y = 0; y < image.rows; ++y) {
         for (int x = 0; x < image.cols; ++x) {
             int dist = distance(image.at<Vec3b>(y,x));
-            // cout << dist << endl;
 
             if (dist < max_dist) {
-                // cout << "w\n";
                 bin_img.at<uchar>(y,x) = 255;
             }
         }
@@ -77,7 +75,6 @@ static void render()
         // Draw largest contour in red to the canvas
         drawContours(canvas, contours, max_i, red, CV_FILLED, 8, hierarchy);
     }
-
     imshow("Largest area", canvas);
 }
 
@@ -93,7 +90,6 @@ static void select_pixel(int event, int x, int y, int flags, void* userdata)
         return;
     }
 
-    // cout << x << " " << y << endl;
     selected_pixel = image.at<Vec3b>(y,x);
 
     render();
@@ -113,7 +109,6 @@ int main(int argc, char const *argv[])
 
     // Create a new windows
     namedWindow("Color distance", 1);
-    // namedWindow("Binary map", 1);
 
     // Create trackbar for distance range
     createTrackbar(

@@ -15,11 +15,9 @@ Mat image;
 
 inline double distance(Vec3b pixel)
 {
-    return sqrt(
-        pow(selected_pixel[0] - pixel[0], 2) +
-        pow(selected_pixel[1] - pixel[1], 2) +
-        pow(selected_pixel[2] - pixel[2], 2)
-    );
+    return pow(selected_pixel[0] - pixel[0], 2) +
+           pow(selected_pixel[1] - pixel[1], 2) +
+           pow(selected_pixel[2] - pixel[2], 2);
 }
 
 static void render()
@@ -117,9 +115,10 @@ int main(int argc, char const *argv[])
         "Color distance",
         &max_dist,
         255,
-        // use a lambda expression to call render, because
-        // the trackbar will set the value automatically.
-        [] (int, void*) { render(); }
+        // Use a lambda expression square the maximal distance,
+        // because we do not use the square root for better performance.
+        // After that, call render directly
+        [] (int, void*) { max_dist *= max_dist; render(); }
     );
 
     //set the callback function for any mouse event

@@ -8,7 +8,7 @@ using namespace std;
 const char* image_names = {"{1| |fruits.jpg|input image name}"};
 const Scalar red = {0, 0, 255};
 
-int max_dist = 1;
+int max_dist = 25;
 // Initially use a black pixel
 Vec3b selected_pixel = {0, 0, 0};
 Mat image;
@@ -77,14 +77,6 @@ static void render()
     imshow("Contours", drawing);
 }
 
-static void select_threshold(int threshold, void*)
-{
-//    cout << "Select threshold " << threshold << endl;
-    max_dist = threshold;
-
-    render();
-}
-
 static void select_pixel(int event, int x, int y, int flags, void* userdata)
 {
     // Only listen on left button clicks
@@ -125,9 +117,10 @@ int main(int argc, char const *argv[])
         "Color distance",
         &max_dist,
         255,
-        select_threshold
+        // use a lambda expression to call render, because
+        // the trackbar will set the value automatically.
+        [] (int, void*) { render(); }
     );
-
 
     //set the callback function for any mouse event
     setMouseCallback("Color distance", select_pixel, NULL);

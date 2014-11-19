@@ -26,15 +26,17 @@ fi
 # use the same repository for their builds 
 git checkout $OpenCV_VERSION
 
+# We build in a separate directory
 [ ! -d "release-$OpenCV_VERSION" ] && mkdir release-$OpenCV_VERSION
 cd release-$OpenCV_VERSION
 
-
+# Build OpenCV library
 cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local ..
 make
 
+# Go into project directory ...
 cd $PROJECT_DIR
 
-export OpenCV_DIR=$HOME/opencv/release-$OpenCV_VERSION/lib
-cmake .
+# ... and finally build the project
+cmake -D OpenCV_DIR=~/opencv/release-$OpenCV_VERSION .
 make

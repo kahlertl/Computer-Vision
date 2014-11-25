@@ -34,9 +34,13 @@ cd release-$OpenCV_VERSION
 cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local ..
 make
 
-# Go into project directory ...
-cd $PROJECT_DIR
+# Walk through all tasks
+for dir in $PROJECT_DIR/task*; do
+    # Go into task directory ...
+    cd $dir
 
-# ... and finally build the project
-cmake -D OpenCV_DIR=~/opencv/release-$OpenCV_VERSION .
-make
+    # ... and finally build the task
+    cmake -D OpenCV_DIR=~/opencv/release-$OpenCV_VERSION .
+    make
+done
+

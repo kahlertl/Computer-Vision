@@ -3,7 +3,7 @@
 	[
 		{
 			"follow_symlinks": true,
-			"path": "/home/s6690729/cvp",
+			"path": ".",
             "name": "Intro to CV",
             "file_exclude_patterns": [".nfs*"]
 		}

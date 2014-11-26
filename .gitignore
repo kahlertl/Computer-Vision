@@ -3,5 +3,6 @@ CMakeFiles/
 Makefile
 cmake_install.cmake
 
-color_dist
-
+# Binaries
+task_1_colored_regisions/color_dist
+task_2_homography/homography

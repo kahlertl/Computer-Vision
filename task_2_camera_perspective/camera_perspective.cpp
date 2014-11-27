@@ -18,8 +18,6 @@ int affine_alpha   = 0;
 int affine_beta    = 0;
 int affine_scaling = 100;
 
-vector<Point3d> object_points;
-
 // images and matrixes
 Mat image;
 Mat affine_image;
@@ -167,21 +165,6 @@ int main( int argc, const char** argv )
         cerr << "Cannot read the image files." << endl;
 
         return 1;
-    }
-
-    object_points = vector<Point3d>(image.rows * image.cols);
-
-    // create xy-plane for the image
-    for (int row = 0, i = 0; row < image.rows; row++) {
-        for (int col = 0; col < image.cols; col++) {
-            Point3d point = Point3d(
-                row, // x
-                col, // y
-                  0  // z
-            );
-            object_points[i] = point;
-            i++;
-        }
     }
 
     // image for performing affine transformation

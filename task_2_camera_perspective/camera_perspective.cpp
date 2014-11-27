@@ -27,6 +27,7 @@ int offset_y = 0;
 
 // 
 vector<Point3d> object_points;
+vector<Point3d> axis_points_3d;
 
 // images and matrixes
 Mat image;
@@ -72,6 +73,15 @@ Mat Rot(int angle)
     return R;
 }
 
+inline Mat Rot_x(int theta)
+{
+    float rad = radian(theta);
+
+    return (Mat_<double>(3,3) << 1, 0,        0,
+                                 0, cos(rad), -sin(rad),
+                                 0, sin(rad), cos(rad)); 
+}
+
 inline Mat Rot_z(int phi)
 {
     float rad = radian(phi);
@@ -93,22 +103,36 @@ void changeCameraPosition()
 
 
     vector<cv::Point2d> image_points;
+    vector<cv::Point2d> axis_points_2d;
 
     // cout << image_points << endl;
     // cout << object_points << endl;
 
     projectPoints(
         object_points,
-        Rot_z(camera_horizontal_angle),
+        Rot_z(camera_horizontal_angle) * Rot_x(camera_vertical_angle),
         trans_matrix,
         camera_matrix,
         noArray(), // do disortion
         image_points
     );
 
+    projectPoints(
+        axis_points_3d,
+        Rot_z(camera_horizontal_angle) * Rot_x(camera_vertical_angle),
+        trans_matrix,
+        camera_matrix,
+        noArray(), // do disortion
+        axis_points_2d
+    );
+
     // cout << image_points << endl;
 
     Mat camera_image = Mat::zeros(512, 512, image.type());
+
+    Vec3b white = {255, 255, 255};
+    Vec3b yellow = {255, 0, 255};
+    Vec3b green = {0, 255, 0};
 
     for (int i = 0; i < image_points.size(); i++) {
         Point2d point = image_points[i];
@@ -124,6 +148,33 @@ void changeCameraPosition()
         if (row >= 0 && row < image.rows) {
             if (col >= 0 && col < image.cols) {
                 camera_image.at<Vec3b>(row, col) = image.at<Vec3b>(object_point.x, object_point.y);
+            }
+        }
+
+
+    }
+
+    // Axises
+    for (int i = 0; i < axis_points_2d.size(); i++) {
+        Point2d point = axis_points_2d[i];
+        Point3d point_3d = axis_points_3d[i];
+
+        // x-axis
+        if (point_3d.z == 0 && point_3d.y == 0) {
+            if (point.x >= 0 && point.x < 512 && point.y >= 0 && point.y < 512) {
+                camera_image.at<Vec3b>(point.x, point.y) = white;
+            }
+        }
+        // y-axis
+        else if (point_3d.z == 0 && point_3d.x == 0) {
+            if (point.x >= 0 && point.x < 512 && point.y >= 0 && point.y < 512) {
+                camera_image.at<Vec3b>(point.x, point.y) = green;
+            }
+        }
+        // z-axis
+        else if (point_3d.x == 0 && point_3d.y == 0) {
+            if (point.x >= 0 && point.x < 512 && point.y >= 0 && point.y < 512) {
+                camera_image.at<Vec3b>(point.x, point.y) = yellow;
             }
         }
     }
@@ -216,6 +267,13 @@ int main( int argc, const char** argv )
             i++;
         }
     }
+
+    for (int i = 0; i < 512; i++) {
+        axis_points_3d.push_back(Point3d(0,0,i));
+        axis_points_3d.push_back(Point3d(0,i,0));
+        axis_points_3d.push_back(Point3d(i,0,0));
+    }
+
     
     imshow("camera perspective", image);
 
@@ -231,8 +289,8 @@ int main( int argc, const char** argv )
     // Create trackbars for the camera position
     // TODO: reasonable range
     createTrackbar("distance", "camera perspective", &camera_distance, 1000, transform);
-    createTrackbar("horizontal angle", "camera perspective", &camera_horizontal_angle, 200, transform);
-    createTrackbar("vertical angle", "camera perspective", &camera_vertical_angle, 200, transform);
+    createTrackbar("horizontal angle", "camera perspective", &camera_horizontal_angle, 360, transform);
+    createTrackbar("vertical angle", "camera perspective", &camera_vertical_angle, 180, transform);
 
     // Create trackbars for affine transformation
     // TODO: reasonable range

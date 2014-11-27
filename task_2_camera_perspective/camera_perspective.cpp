@@ -31,27 +31,20 @@ vector<Point3d> axis_points_3d;
 
 // images and matrixes
 Mat image;
-Mat image_warp;
-Mat warp_matrix(2, 3, CV_64F, cvScalar(0.0));
+Mat affine_image;
+Mat perspective_image;
+Mat affine_matrix(2, 3, CV_64F, cvScalar(0.0));
 
 // intrinsic camera parameter matrix
-Mat camera_matrix = (Mat_<double>(3,3) << 100, 0, 512 / 2,
-                                          0, 100, 512 / 2,
-                                          0, 0, 1);
+Mat camera_matrix = (Mat_<double>(3,4) << 100,   0, 512 / 2, 0,
+                                            0, 100, 512 / 2, 0,
+                                            0,   0,       1, 0);
 
-
-
-// void print_matrix(const Mat& matrix)
-// {
-//     for (int i = 0; i < matrix.rows; i++) {
-//         for (int j = 0; j < matrix.cols; j++) {
-//             cout << matrix.at<double>(i,j) << " ";
-//         }
-//         cout << endl;
-//     }
-
-//     cout << endl;
-// }
+// projection matrix from 2D -> 3D
+Mat projection_3D = (Mat_<double>(4,3) << 1, 0, -512 / 2,
+                                          0, 1, -512 / 2,
+                                          0, 0,        0,
+                                          0, 0,        1);
 
 
 
@@ -59,6 +52,7 @@ inline float radian(const float degree)
 {
     return degree * M_PI / 180;
 }
+
 
 Mat Rot(int angle)
 {
@@ -73,156 +67,90 @@ Mat Rot(int angle)
     return R;
 }
 
-inline Mat Rot_x(int theta)
+inline Mat RotX(const int angle)
 {
-    float rad = radian(theta);
+    float theta = radian(angle);
 
-    return (Mat_<double>(3,3) << 1, 0,        0,
-                                 0, cos(rad), -sin(rad),
-                                 0, sin(rad), cos(rad)); 
+    return (Mat_<double>(4,4) << 1,          0,           0, 0,
+                                 0, cos(theta), -sin(theta), 0,
+                                 0, sin(theta),  cos(theta), 0,
+                                 0,          0,           0, 1); 
 }
 
-inline Mat Rot_z(int phi)
+inline Mat RotZ(const int angle)
 {
-    float rad = radian(phi);
+    float phi = radian(angle);
 
-    return (Mat_<double>(3,3) << cos(rad), -sin(rad), 0,
-                                 sin(rad), cos(rad) , 0,
-                                 0,        0,         1);
+    return (Mat_<double>(4,4) << cos(phi), -sin(phi), 0, 0,
+                                 sin(phi),  cos(phi), 0, 0,
+                                        0,         0, 1, 0,
+                                        0,         0, 0, 1);
 }
 
 
-void changeCameraPosition()
+void perspective_transformation()
 {
-    float theta = radian(camera_vertical_angle);
-    float phi   = radian(camera_horizontal_angle);
+    // rotation
+    Mat rotation(3, 3, CV_64F, cvScalar(0.0));
+    rotation = RotX(camera_vertical_angle) * RotZ(camera_horizontal_angle);
 
-    Mat trans_matrix = (Mat_<double>(3,1) << camera_distance * sin(theta) * cos(phi),
-                                             camera_distance * sin(theta) * sin(phi),
-                                             camera_distance * cos(theta));
+    // translation
+    Mat translation = (Mat_<double>(4,4) << 1, 0, 0, 0,
+                                            0, 1, 0, 0,
+                                            0, 0, 1, camera_distance,
+                                            0, 0, 0, 1);
 
+    // compose transformation matrix
+    Mat transformation = camera_matrix * (translation * (rotation * projection_3D));
 
-    vector<cv::Point2d> image_points;
-    vector<cv::Point2d> axis_points_2d;
-
-    // cout << image_points << endl;
-    // cout << object_points << endl;
-
-    projectPoints(
-        object_points,
-        Rot_z(camera_horizontal_angle) * Rot_x(camera_vertical_angle),
-        trans_matrix,
-        camera_matrix,
-        noArray(), // do disortion
-        image_points
-    );
-
-    projectPoints(
-        axis_points_3d,
-        Rot_z(camera_horizontal_angle) * Rot_x(camera_vertical_angle),
-        trans_matrix,
-        camera_matrix,
-        noArray(), // do disortion
-        axis_points_2d
-    );
-
-    // cout << image_points << endl;
-
-    Mat camera_image = Mat::zeros(512, 512, image.type());
-
-    Vec3b white = {255, 255, 255};
-    Vec3b yellow = {255, 0, 255};
-    Vec3b green = {0, 255, 0};
-
-    for (int i = 0; i < image_points.size(); i++) {
-        Point2d point = image_points[i];
-
-        Point3d object_point = object_points[i];
-
-        int row = point.x + offset_x;
-        int col = point.y + offset_y;
-
-        // cout << point << " -> " << row << ", " << col << endl;
-
-
-        if (row >= 0 && row < image.rows) {
-            if (col >= 0 && col < image.cols) {
-                camera_image.at<Vec3b>(row, col) = image.at<Vec3b>(object_point.x, object_point.y);
-            }
-        }
-
-
-    }
-
-    // Axises
-    for (int i = 0; i < axis_points_2d.size(); i++) {
-        Point2d point = axis_points_2d[i];
-        Point3d point_3d = axis_points_3d[i];
-
-        // x-axis
-        if (point_3d.z == 0 && point_3d.y == 0) {
-            if (point.x >= 0 && point.x < 512 && point.y >= 0 && point.y < 512) {
-                camera_image.at<Vec3b>(point.x, point.y) = white;
-            }
-        }
-        // y-axis
-        else if (point_3d.z == 0 && point_3d.x == 0) {
-            if (point.x >= 0 && point.x < 512 && point.y >= 0 && point.y < 512) {
-                camera_image.at<Vec3b>(point.x, point.y) = green;
-            }
-        }
-        // z-axis
-        else if (point_3d.x == 0 && point_3d.y == 0) {
-            if (point.x >= 0 && point.x < 512 && point.y >= 0 && point.y < 512) {
-                camera_image.at<Vec3b>(point.x, point.y) = yellow;
-            }
-        }
-    }
-
-    imshow("Camera", camera_image);
-
+    warpPerspective(affine_image, perspective_image, transformation, perspective_image.size());
+    // warpPerspective(image, perspective_image, transformation, perspective_image.size());
+    imshow("camera perspective", perspective_image);
 }
 
 
 void affine_transformation() {
-    // Calculate 2x3 warp matrix
-    // Scaling matrix D
+    // calculate 2x3 warp matrix
+
+    // scaling matrix
     Mat D(2,2,CV_64F, cvScalar(0.0));
     D.at<double>(0,0) = affine_scale_factor / 100.0;
     D.at<double>(1,1) = 1;
 
+    // compose rotation and scaling matrices
     Mat A(2,2,CV_64F, cvScalar(0.0));
     A = Rot(affine_main_angle) * (
-            Rot(-1 * affine_secondary_angle) *
+            Rot(-affine_secondary_angle) *
             D *
             Rot(affine_secondary_angle)
         );
 
-    // 2x3 matrix (opencv knows last row)
     // translation is not needed therefore the third column stays zero
-    warp_matrix.at<double>(0,0) = A.at<double>(0,0);
-    warp_matrix.at<double>(0,1) = A.at<double>(0,1);
-    warp_matrix.at<double>(1,0) = A.at<double>(1,0);
-    warp_matrix.at<double>(1,1) = A.at<double>(1,1);
 
-    // warp_matrix.at<double>(0,2) = image.rows / 2;
-    // warp_matrix.at<double>(1,2) = image.cols / 2;
+    // affine_matrix.at<double>(0,2) = image.rows / 2;
+    // affine_matrix.at<double>(1,2) = image.cols / 2;
 
-    cout << "Warp matrix:" << endl << warp_matrix << endl;
+    // compose finial transformation matrix
+    affine_matrix.at<double>(0,0) = A.at<double>(0,0);
+    affine_matrix.at<double>(0,1) = A.at<double>(0,1);
+    affine_matrix.at<double>(1,0) = A.at<double>(1,0);
+    affine_matrix.at<double>(1,1) = A.at<double>(1,1);
 
-    // Apply transformation
-    // TODO: decide on which image it should be applied (original or with camera perspective)
-    warpAffine(image, image_warp, warp_matrix, image.size());
+    // cout << "Warp matrix:" << endl << affine_matrix << endl;
 
-    // warpAffine(image_warp, image_warp, trans_matrix, image_warp.size());
+    // apply transformation
+    warpAffine(image, affine_image, affine_matrix, image.size());
 
-    imshow("camera perspective", image_warp);
+    imshow("camera perspective", affine_image);
 }
 
-void transform(int, void*) {
-    // affine_transformation();
-    changeCameraPosition();
+
+void render(int, void*)
+{
+    affine_transformation();
+    perspective_transformation();
 }
+
 
 int main( int argc, const char** argv )
 {
@@ -268,37 +196,39 @@ int main( int argc, const char** argv )
         }
     }
 
-    for (int i = 0; i < 512; i++) {
-        axis_points_3d.push_back(Point3d(0,0,i));
-        axis_points_3d.push_back(Point3d(0,i,0));
-        axis_points_3d.push_back(Point3d(i,0,0));
-    }
+    // for (int i = 0; i < 512; i++) {
+    //     axis_points_3d.push_back(Point3d(0,0,i));
+    //     axis_points_3d.push_back(Point3d(0,i,0));
+    //     axis_points_3d.push_back(Point3d(i,0,0));
+    // }
 
     
-    imshow("camera perspective", image);
+    // imshow("camera perspective", image);
 
     // trans_matrix = (Mat_<double>(2,3) << 1, 0, -image.rows / 2,
     //                                      0, 1, -image.cols / 2);
 
-    // Image for performing transformation on
-    image_warp = Mat::zeros(image.rows, image.cols, image.type());
+    // image for performing affine transformation
+    affine_image = Mat::zeros(image.rows, image.cols, image.type());
 
-    // Create a window
+    // create a window
     namedWindow("camera perspective", 1);
 
-    // Create trackbars for the camera position
+    // create trackbars for the camera position
     // TODO: reasonable range
-    createTrackbar("distance", "camera perspective", &camera_distance, 1000, transform);
-    createTrackbar("horizontal angle", "camera perspective", &camera_horizontal_angle, 360, transform);
-    createTrackbar("vertical angle", "camera perspective", &camera_vertical_angle, 180, transform);
+    createTrackbar("distance", "camera perspective", &camera_distance, 1000, render);
+    createTrackbar("horizontal", "camera perspective", &camera_horizontal_angle, 360, render);
+    createTrackbar("vertical", "camera perspective", &camera_vertical_angle, 360, render);
 
-    // Create trackbars for affine transformation
+    // create trackbars for affine transformation
     // TODO: reasonable range
-    createTrackbar("main rotation angle", "camera perspective", &affine_main_angle, 360, transform);
-    createTrackbar("sec. rotation angle", "camera perspective", &affine_secondary_angle, 180, transform);
-    createTrackbar("scale factor in %", "camera perspective", &affine_scale_factor, 200, transform);
+    createTrackbar("main rotation angle", "camera perspective", &affine_main_angle, 360, render);
+    createTrackbar("sec. rotation angle", "camera perspective", &affine_secondary_angle, 180, render);
+    createTrackbar("scale factor in %", "camera perspective", &affine_scale_factor, 200, render);
 
-    // Wait for a key stroke; the same function arranges events processing
+    render(0, NULL);
+
+    // wait for a key stroke; the same function arranges events processing
     waitKey(0);
 
     return 0;

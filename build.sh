@@ -10,6 +10,8 @@
 PROJECT_DIR=$PWD
 OpenCV_VERSION="2.4.9.1"
 
+set -e
+
 # We will build the OpenCV in the home direcory
 # to prevent GitLab CI from deleting our build
 cd ~

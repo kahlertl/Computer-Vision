@@ -129,9 +129,6 @@ void affine_transformation() {
 
     // translation is not needed therefore the third column stays zero
 
-    // affine_matrix.at<double>(0,2) = image.rows / 2;
-    // affine_matrix.at<double>(1,2) = image.cols / 2;
-
     // compose finial transformation matrix
     affine_matrix.at<double>(0,0) = A.at<double>(0,0);
     affine_matrix.at<double>(0,1) = A.at<double>(0,1);
@@ -142,8 +139,6 @@ void affine_transformation() {
 
     // apply transformation
     warpAffine(image, affine_image, affine_matrix, image.size());
-
-    imshow("camera perspective", affine_image);
 }
 
 
@@ -180,9 +175,9 @@ int main( int argc, const char** argv )
     for (int row = 0, i = 0; row < image.rows; row++) {
         for (int col = 0; col < image.cols; col++) {
             Point3d point = Point3d(
-                row - offset_x, // x
-                col - offset_y, // y
-                0               // z
+                row, // x
+                col, // y
+                  0  // z
             );
             object_points[i] = point;
             i++;

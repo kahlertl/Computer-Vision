@@ -4,30 +4,21 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/calib3d/calib3d.hpp" // projectPoints()
-
-
+#include "opencv2/calib3d/calib3d.hpp"
 
 using namespace cv;
 using namespace std;
 
 // trackbar values
-int camera_distance         = 200;
-int camera_horizontal_angle = 0;
-int camera_vertical_angle   = 0;
-int affine_main_angle       = 0;
-int affine_secondary_angle  = 0;
-int affine_scale_factor     = 100;
+int camera_distance   = 200;
+int camera_horizontal = 0;
+int camera_vertical   = 0;
 
+int affine_alpha   = 0;
+int affine_beta    = 0;
+int affine_scaling = 100;
 
-//
-int offset_x = 0;
-int offset_y = 0;
-
-
-// 
 vector<Point3d> object_points;
-vector<Point3d> axis_points_3d;
 
 // images and matrixes
 Mat image;
@@ -47,13 +38,18 @@ Mat projection_3D = (Mat_<double>(4,3) << 1, 0, -512 / 2,
                                           0, 0,        1);
 
 
-
+/**
+ * Conversion from degree into radian
+ */
 inline float radian(const float degree)
 {
     return degree * M_PI / 180;
 }
 
 
+/**
+ * Simple 2D rotation matrix
+ */
 Mat Rot(int angle)
 {
     Mat R(2,2,CV_64F, cvScalar(0.0));
@@ -67,6 +63,9 @@ Mat Rot(int angle)
     return R;
 }
 
+/**
+ * 3D rotation matrix around x-axis in homogenous coordinates
+ */
 inline Mat RotX(const int angle)
 {
     float theta = radian(angle);
@@ -77,6 +76,9 @@ inline Mat RotX(const int angle)
                                  0,          0,           0, 1); 
 }
 
+/**
+ * 3D rotation matrix around z-axis in homogenous coordinates
+ */
 inline Mat RotZ(const int angle)
 {
     float phi = radian(angle);
@@ -92,7 +94,7 @@ void perspective_transformation()
 {
     // rotation
     Mat rotation(3, 3, CV_64F, cvScalar(0.0));
-    rotation = RotX(camera_vertical_angle) * RotZ(camera_horizontal_angle);
+    rotation = RotX(camera_vertical) * RotZ(camera_horizontal);
 
     // translation
     Mat translation = (Mat_<double>(4,4) << 1, 0, 0, 0,
@@ -114,15 +116,15 @@ void affine_transformation() {
 
     // scaling matrix
     Mat D(2,2,CV_64F, cvScalar(0.0));
-    D.at<double>(0,0) = affine_scale_factor / 100.0;
+    D.at<double>(0,0) = affine_scaling / 100.0;
     D.at<double>(1,1) = 1;
 
     // compose rotation and scaling matrices
     Mat A(2,2,CV_64F, cvScalar(0.0));
-    A = Rot(affine_main_angle) * (
-            Rot(-affine_secondary_angle) *
+    A = Rot(affine_alpha) * (
+            Rot(-affine_beta) *
             D *
-            Rot(affine_secondary_angle)
+            Rot(affine_beta)
         );
 
     // translation is not needed therefore the third column stays zero
@@ -145,6 +147,9 @@ void affine_transformation() {
 }
 
 
+/**
+ * Callback function for all trackbars
+ */
 void render(int, void*)
 {
     affine_transformation();
@@ -169,63 +174,37 @@ int main( int argc, const char** argv )
         return 1;
     }
 
-
-    // Create square dimensions
-    // TODO
-    resize(image, image, Size_<int>(512, 512));
-
-
     object_points = vector<Point3d>(image.rows * image.cols);
 
-    // offset_x = image.rows / 2;
-    // offset_y = image.cols / 2;
-    int i = 0;
-
-    for (int row = 0; row < image.rows; row++) {
+    // create xy-plane for the image
+    for (int row = 0, i = 0; row < image.rows; row++) {
         for (int col = 0; col < image.cols; col++) {
             Point3d point = Point3d(
                 row - offset_x, // x
                 col - offset_y, // y
                 0               // z
             );
-
             object_points[i] = point;
-
-            // cout << point << endl;
             i++;
         }
     }
 
-    // for (int i = 0; i < 512; i++) {
-    //     axis_points_3d.push_back(Point3d(0,0,i));
-    //     axis_points_3d.push_back(Point3d(0,i,0));
-    //     axis_points_3d.push_back(Point3d(i,0,0));
-    // }
-
-    
-    // imshow("camera perspective", image);
-
-    // trans_matrix = (Mat_<double>(2,3) << 1, 0, -image.rows / 2,
-    //                                      0, 1, -image.cols / 2);
-
     // image for performing affine transformation
     affine_image = Mat::zeros(image.rows, image.cols, image.type());
 
-    // create a window
-    namedWindow("camera perspective", 1);
+    namedWindow("camera perspective", WINDOW_AUTOSIZE);
 
     // create trackbars for the camera position
-    // TODO: reasonable range
-    createTrackbar("distance", "camera perspective", &camera_distance, 1000, render);
-    createTrackbar("horizontal", "camera perspective", &camera_horizontal_angle, 360, render);
-    createTrackbar("vertical", "camera perspective", &camera_vertical_angle, 360, render);
+    createTrackbar("distance",   "camera perspective", &camera_distance,   1000, render);
+    createTrackbar("horizontal", "camera perspective", &camera_horizontal,  360, render);
+    createTrackbar("vertical",   "camera perspective", &camera_vertical,    360, render);
 
     // create trackbars for affine transformation
-    // TODO: reasonable range
-    createTrackbar("main rotation angle", "camera perspective", &affine_main_angle, 360, render);
-    createTrackbar("sec. rotation angle", "camera perspective", &affine_secondary_angle, 180, render);
-    createTrackbar("scale factor in %", "camera perspective", &affine_scale_factor, 200, render);
+    createTrackbar("affine ain rotation 1", "camera perspective", &affine_alpha,   360, render);
+    createTrackbar("affine rotation 2",     "camera perspective", &affine_beta,    180, render);
+    createTrackbar("affine scaling in %",   "camera perspective", &affine_scaling, 200, render);
 
+    // initial rendering of the scene
     render(0, NULL);
 
     // wait for a key stroke; the same function arranges events processing

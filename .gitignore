@@ -7,3 +7,4 @@ cmake_install.cmake
 task_1_colored_regisions/color_dist
 task_2_homography/homography
 task_2_camera_perspective/camera_perspective
+exercise_2_fast_median_filter/fast_median_filter

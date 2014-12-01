@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( fast_median_filter )
+find_package( OpenCV REQUIRED )
+add_executable( fast_median_filter fast_median_filter.cpp )
+target_link_libraries( fast_median_filter ${OpenCV_LIBS} )
+set(CMAKE_CXX_FLAGS "-std=c++0x")

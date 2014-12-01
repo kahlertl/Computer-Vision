@@ -1,0 +1,1 @@
+# Exercise 2: Fast Median Filter

@@ -12,9 +12,11 @@ using namespace cv;
 // input image
 Mat image;
 
-int radius      = 1;
+int radius      = 3;
 int window_size = 2 * radius + 1;
 int window_area = window_size * window_size;
+
+int histogram[256];
 
 static inline int histo_median(const int (&histogram)[256])
 {
@@ -33,64 +35,135 @@ static inline int histo_median(const int (&histogram)[256])
 
 void huang_median()
 {
-    int histogram[256];
-
-    // zero the historgram
-    memset(histogram, 0, sizeof(histogram));
-
-    // number of pixel elements with gray level smaller than the median
-    int ltmedian = 0;
-
     int median = 0;
 
-    for (int row = 0; row < window_size; row++) {
-        for (int col = 0; col < window_size; col++) {
-            histogram[image.at<uchar>(row, col)]++;
+    // for (int row = 0; row < window_size; row++) {
+    //     for (int col = 0; col < window_size; col++) {
+    //         histogram[image.at<uchar>(row, col)]++;
+    //     }
+    // }
+
+    // median = histo_median(histogram);
+
+    Mat filtered_image = Mat::zeros(image.size(), image.type());
+
+
+    for (int row = radius; row < image.rows - radius; row++) {
+        // init histogram
+
+        // zero the histogram
+        memset(histogram, 0, sizeof(histogram));
+
+        for (int window_row = row - radius; window_row < row + radius; window_row++) {
+            for (int col = 0; col < window_size; col++) {
+                histogram[image.at<uchar>(window_row, col)]++;
+            }
         }
-    }
 
-    median = histo_median(histogram);
+        filtered_image.at<uchar>(row,radius) = histo_median(histogram);
+        // continue;
 
-    int row = radius;
+        for (int col = radius + 1; col < image.cols - radius; col++) {
+            // remove left column
+            // cout << "Remove left column " << col - radius - 1 << endl;
 
-    while(row < image.rows - radius) {
-        // move right
-        for (int col = radius; col < image.cols - radius; col++) {
-            // remove left column from last step
             for (int i = 0; i < window_size; i++) {
                 histogram[image.at<uchar>(row - radius + i, col - radius - 1)]--;
             }
 
             // add right column
+            // cout << "Add right column " << col + radius << endl;
+
             for (int i = 0; i < window_size; i++) {
                 histogram[image.at<uchar>(row - radius + i, col + radius)]++;
             }
 
-            image.at<uchar>(row,col) = histo_median(histogram);
+            filtered_image.at<uchar>(row,col) = histo_median(histogram);
         }
 
-        // move down
-        // 
-        row++;
+        // break;
 
-        // remove upper row
-
-
-        // move left
-        for (int col = image.cols - radius; col < radius; col--) {
-            // remove right column
-
-            // add left column
-        }
-
-
-        // move down
-        row++;
     }
 
-    cout << "Median: " << median << endl;
+    // while (true) {
+    //     // move right
+    //     for (int col = radius; col < image.cols - radius; col++) {
+    //         // cout << row << " " << col << endl;
 
-    imshow("Median filter", image);
+    //         // remove left column from last step
+    //         for (int i = 0; i < window_size; i++) {
+    //             histogram[image.at<uchar>(row - radius + i, col - radius - 1)]--;
+    //         }
+
+    //         // add right column
+    //         for (int i = 0; i < window_size; i++) {
+    //             histogram[image.at<uchar>(row - radius + i, col + radius)]++;
+    //         }
+
+    //         image.at<uchar>(row,col) = histo_median(histogram);
+    //     }
+
+    //     row++;
+
+    //     if (row > image.rows - radius) {
+    //         // cout << "Break at row " << row << endl;
+
+    //         break;
+    //     }
+
+    //     // move down
+    //     // 
+    //     // remove top row
+    //     for (int col = image.cols - (2 * radius + 1); col < image.cols; col++) {
+    //         histogram[image.at<uchar>(row - radius - 1, col)]--;
+    //     }
+
+    //     // add botton row
+    //     for (int col = image.cols - (2 * radius + 1); col < image.cols; col++) {
+    //         histogram[image.at<uchar>(row + radius, col)]--;
+    //     }
+
+
+    //     // move left
+    //     for (int col = image.cols - radius; col < radius; col--) {
+    //         cout << row << " " << col << endl;
+
+    //         // remove right column
+    //         // add right column
+    //         for (int i = 0; i < window_size; i++) {
+    //             histogram[image.at<uchar>(row - radius + i, col + radius)]--;
+    //         }
+
+    //         // add left column
+    //         for (int i = 0; i < window_size; i++) {
+    //             histogram[image.at<uchar>(row - radius + i, col - radius - 1)]++;
+    //         }
+
+    //         image.at<uchar>(row,col) = histo_median(histogram);
+    //     }
+
+    //     row++;
+
+    //     if (row > image.rows - radius) {
+    //         cout << "Break at row " << row << endl;
+
+    //         break;
+    //     }
+
+    //     // move down
+    //     // 
+    //     // remove top row
+    //     for (int col = 2 * radius + 1; col >= 0; col--) {
+    //         histogram[image.at<uchar>(row - radius - 1, col)]--;
+    //     }
+
+    //     // add botton row
+    //     for (int col = 2 * radius + 1; col >= 0; col--) {
+    //         histogram[image.at<uchar>(row + radius, col)]--;
+    //     }
+    // }
+
+    imshow("Median filter", filtered_image);
 }
 
 /**
@@ -128,6 +201,9 @@ int main(int argc, char const *argv[])
 
         return 1;
     }
+
+    // zero the historgram
+    memset(histogram, 0, sizeof(histogram));
 
     // namedWindow("Median Filter", WINDOW_AUTOSIZE);
 

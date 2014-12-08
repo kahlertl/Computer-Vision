@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( histo_match )
+find_package( OpenCV REQUIRED )
+add_executable( histo_match histo_match.cpp )
+target_link_libraries( histo_match ${OpenCV_LIBS} )
+set(CMAKE_CXX_FLAGS "-std=c++0x")

@@ -6,6 +6,8 @@
 using namespace std;
 using namespace cv;
 
+
+
 int main(int argc, char** argv)
 {
     Mat src;
@@ -45,6 +47,18 @@ int main(int argc, char** argv)
     // compute the histogram
     calcHist(&src, 1, 0, Mat(), hist, 1, &hist_size, &hist_range, uniform, accumulate);
 
+    // compute cumulative distribution function
+    Mat cdf = Mat::zeros(hist.size(), hist.type());
+
+    float sum = 0;
+    for (int row = 0; row < hist.rows; row++) {
+        sum += hist.at<float>(row, 0);
+        cdf.at<float>(row, 0) = sum;
+    }
+
+    // cout << hist << endl;
+    // cout << cdf << endl;
+
     // draw the histograms for B, G and R
     int hist_width  = 512;
     int hist_height = 400;
@@ -54,6 +68,7 @@ int main(int argc, char** argv)
 
     // normalize the result to [ 0, hist_image.rows ]
     normalize(hist, hist, 0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
+    normalize(cdf,  cdf,  0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
 
     for(int i = 1; i < hist_size; i++) {
         line(
@@ -61,6 +76,13 @@ int main(int argc, char** argv)
             Point(bin_width * (i - 1), hist_height - cvRound(hist.at<float>(i - 1))),
             Point(bin_width * (i),     hist_height - cvRound(hist.at<float>(i)) ),
             Scalar(225, 225, 225),
+            2, 8, 0
+        );
+        line(
+            hist_image,
+            Point(bin_width * (i - 1), hist_height - cvRound(cdf.at<float>(i - 1))),
+            Point(bin_width * (i),     hist_height - cvRound(cdf.at<float>(i)) ),
+            Scalar(0, 0, 225),
             2, 8, 0
         );
     }

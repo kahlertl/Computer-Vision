@@ -24,7 +24,6 @@ void cumsum(Mat& hist, Mat& cdf)
 int main( int argc, char** argv )
 {
     Mat src;
-    Mat dst;
 
     if (argc != 2) {
         cout << "Usage: ./equalize_histo image" << endl;
@@ -139,12 +138,31 @@ int main( int argc, char** argv )
         );
     }
 
+    Mat channels_equal[3] = {
+        Mat::zeros(bgr_planes[0].size(), bgr_planes[0].type()),
+        Mat::zeros(bgr_planes[1].size(), bgr_planes[1].type()),
+        Mat::zeros(bgr_planes[2].size(), bgr_planes[2].type()),
+    };
+
+    // apply histogram equalization for each channel separatly
+    equalizeHist(bgr_planes[0], channels_equal[0]);
+    equalizeHist(bgr_planes[1], channels_equal[1]);
+    equalizeHist(bgr_planes[2], channels_equal[2]);
+
+    Mat image_channel_equal;
+
+    merge(channels_equal, 3, image_channel_equal);
+
     // display
     namedWindow("Histograms", CV_WINDOW_AUTOSIZE );
     imshow("Histograms", hist_image );
 
     namedWindow("CDFs", CV_WINDOW_AUTOSIZE );
     imshow("CDFs", cdf_image );
+
+    namedWindow("Histogram Equalization (for each channel)", CV_WINDOW_AUTOSIZE );
+    imshow("Histogram Equalization (for each channel)", image_channel_equal );
+
 
     waitKey(0);
 

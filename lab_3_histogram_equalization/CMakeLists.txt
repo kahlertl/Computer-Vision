@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( equalize_histo )
+find_package( OpenCV REQUIRED )
+add_executable( equalize_histo equalize_histo.cpp )
+target_link_libraries( equalize_histo ${OpenCV_LIBS} )
+set(CMAKE_CXX_FLAGS "-std=c++0x")

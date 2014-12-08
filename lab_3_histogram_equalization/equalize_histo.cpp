@@ -20,6 +20,25 @@ void cumsum(Mat& hist, Mat& cdf)
     }
 }
 
+void histogram_equalization(const vector<Mat> &channels, const Mat (&hist_bgr)[3])
+{
+    // compute average histogram from the 3 channels
+    Mat hist_average = Mat::zeros(hist_bgr[0].size(), hist_bgr[0].type());
+
+    for (int row = 0; row < hist_bgr[0].rows; row++) {
+        hist_average.at<float>(row, 0) = (hist_bgr[0].at<float>(row, 0) +
+                                          hist_bgr[1].at<float>(row, 0) +
+                                          hist_bgr[2].at<float>(row, 0)) / 3;
+        // cout << hist_bgr[0].at<float>(row, 0) << " "
+        //      << hist_bgr[1].at<float>(row, 0) << " "
+        //      << hist_bgr[2].at<float>(row, 0) << " -> ";
+        // cout << ((hist_bgr[0].at<float>(row, 0) +
+        //           hist_bgr[1].at<float>(row, 0) +
+        //           hist_bgr[2].at<float>(row, 0)) / 3) << endl;
+    }
+
+    cout << hist_average << endl;
+}
 
 int main( int argc, char** argv )
 {
@@ -54,23 +73,39 @@ int main( int argc, char** argv )
     bool uniform = true;
     bool accumulate = false;
 
-    Mat hist_b;
-    Mat hist_g;
-    Mat hist_r;
+    Mat hists_bgr[3];
 
     // compute the histograms:
-    calcHist(&bgr_planes[0], 1, 0, Mat(), hist_b, 1, &hist_size, &hist_range, uniform, accumulate);
-    calcHist(&bgr_planes[1], 1, 0, Mat(), hist_g, 1, &hist_size, &hist_range, uniform, accumulate);
-    calcHist(&bgr_planes[2], 1, 0, Mat(), hist_r, 1, &hist_size, &hist_range, uniform, accumulate);
+    calcHist(&bgr_planes[0], 1, 0, Mat(), hists_bgr[0], 1, &hist_size, &hist_range, uniform, accumulate);
+    calcHist(&bgr_planes[1], 1, 0, Mat(), hists_bgr[1], 1, &hist_size, &hist_range, uniform, accumulate);
+    calcHist(&bgr_planes[2], 1, 0, Mat(), hists_bgr[2], 1, &hist_size, &hist_range, uniform, accumulate);
 
     Mat cdf_b;
     Mat cdf_g;
     Mat cdf_r;
 
     // compute CDFs of the histograms
-    cumsum(hist_b, cdf_b);
-    cumsum(hist_g, cdf_g);
-    cumsum(hist_r, cdf_r);
+    cumsum(hists_bgr[0], cdf_b);
+    cumsum(hists_bgr[1], cdf_g);
+    cumsum(hists_bgr[2], cdf_r);
+
+    Mat channels_equal[3] = {
+        Mat::zeros(bgr_planes[0].size(), bgr_planes[0].type()),
+        Mat::zeros(bgr_planes[1].size(), bgr_planes[1].type()),
+        Mat::zeros(bgr_planes[2].size(), bgr_planes[2].type()),
+    };
+
+    // apply histogram equalization for each channel separatly
+    equalizeHist(bgr_planes[0], channels_equal[0]);
+    equalizeHist(bgr_planes[1], channels_equal[1]);
+    equalizeHist(bgr_planes[2], channels_equal[2]);
+
+    // create final image from the separatly histogram-equalized channels
+    Mat image_channel_equal;
+
+    merge(channels_equal, 3, image_channel_equal);
+
+    histogram_equalization(bgr_planes, hists_bgr);
 
     // draw the histograms for B, G and R
     int hist_wdith = 512;
@@ -80,37 +115,37 @@ int main( int argc, char** argv )
     Mat hist_image(hist_height, hist_wdith, CV_8UC3, Scalar( 0,0,0) );
     Mat cdf_image (hist_height, hist_wdith, CV_8UC3, Scalar( 0,0,0) );
 
-    // normalize the result to [ 0, hist_image.rows ]
-    normalize(hist_b, hist_b, 0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
-    normalize(hist_g, hist_g, 0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
-    normalize(hist_r, hist_r, 0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
+    // normalize the histograms to [ 0, hist_image.rows ]
+    normalize(hists_bgr[0], hists_bgr[0], 0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
+    normalize(hists_bgr[1], hists_bgr[1], 0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
+    normalize(hists_bgr[2], hists_bgr[2], 0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
 
-    normalize(cdf_b, cdf_b, 0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
-    normalize(cdf_g, cdf_g, 0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
-    normalize(cdf_r, cdf_r, 0, hist_image.rows - 10, NORM_MINMAX, -1, Mat());
-
+    // normalize the CDFs to [ 0, cdf_image.rows ]
+    normalize(cdf_b, cdf_b, 0, cdf_image.rows - 10, NORM_MINMAX, -1, Mat());
+    normalize(cdf_g, cdf_g, 0, cdf_image.rows - 10, NORM_MINMAX, -1, Mat());
+    normalize(cdf_r, cdf_r, 0, cdf_image.rows - 10, NORM_MINMAX, -1, Mat());
 
     // draw for each channel
     for (int i = 1; i < hist_size; i++) {
         // histograms
         line(
             hist_image,
-            Point(bin_width * (i - 1), hist_height - cvRound(hist_b.at<float>(i - 1))),
-            Point(bin_width * i,       hist_height - cvRound(hist_b.at<float>(i))),
+            Point(bin_width * (i - 1), hist_height - cvRound(hists_bgr[0].at<float>(i - 1))),
+            Point(bin_width * i,       hist_height - cvRound(hists_bgr[0].at<float>(i))),
             Scalar(255, 0, 0),
             2, 8, 0
         );
         line(
             hist_image,
-            Point(bin_width * (i - 1), hist_height - cvRound(hist_g.at<float>(i - 1))),
-            Point(bin_width * i,       hist_height - cvRound(hist_g.at<float>(i))),
+            Point(bin_width * (i - 1), hist_height - cvRound(hists_bgr[1].at<float>(i - 1))),
+            Point(bin_width * i,       hist_height - cvRound(hists_bgr[1].at<float>(i))),
             Scalar(0, 255, 0),
             2, 8, 0
         );
         line(
             hist_image,
-            Point(bin_width * (i - 1), hist_height - cvRound(hist_r.at<float>(i - 1))),
-            Point(bin_width * i,       hist_height - cvRound(hist_r.at<float>(i))),
+            Point(bin_width * (i - 1), hist_height - cvRound(hists_bgr[2].at<float>(i - 1))),
+            Point(bin_width * i,       hist_height - cvRound(hists_bgr[2].at<float>(i))),
             Scalar(0, 0, 255),
             2, 8, 0
         );
@@ -138,21 +173,6 @@ int main( int argc, char** argv )
         );
     }
 
-    Mat channels_equal[3] = {
-        Mat::zeros(bgr_planes[0].size(), bgr_planes[0].type()),
-        Mat::zeros(bgr_planes[1].size(), bgr_planes[1].type()),
-        Mat::zeros(bgr_planes[2].size(), bgr_planes[2].type()),
-    };
-
-    // apply histogram equalization for each channel separatly
-    equalizeHist(bgr_planes[0], channels_equal[0]);
-    equalizeHist(bgr_planes[1], channels_equal[1]);
-    equalizeHist(bgr_planes[2], channels_equal[2]);
-
-    Mat image_channel_equal;
-
-    merge(channels_equal, 3, image_channel_equal);
-
     // display
     namedWindow("Histograms", CV_WINDOW_AUTOSIZE );
     imshow("Histograms", hist_image );
@@ -162,7 +182,6 @@ int main( int argc, char** argv )
 
     namedWindow("Histogram Equalization (for each channel)", CV_WINDOW_AUTOSIZE );
     imshow("Histogram Equalization (for each channel)", image_channel_equal );
-
 
     waitKey(0);
 

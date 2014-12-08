@@ -11,3 +11,20 @@ A smarter way to do color image histogram equalization: take the average of the
 3 histograms of color channel. Then use histogram matching to match each color
 channel to the average histogram you computed. Combine the channels and show the
 result. Compare it to the previous result.
+
+
+## Build
+
+The project has no other dependencies than OpenCV v2.4.9. You can build the
+project with `cmake`:
+
+```bash
+# generate Makefile
+$ cmake .
+
+# compile binary
+$ make
+
+# execute
+$ ./equalize_histo rocks.jpg
+```

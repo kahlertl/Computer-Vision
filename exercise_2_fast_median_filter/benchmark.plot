@@ -5,7 +5,7 @@ set ylabel "time (seconds)"
 f(x) = a*x + b
 
 # Output format and file
-set term png
+set term png size 960,720
 set output "benchmark.png"
 
 set multiplot layout 2,2 title "Linear histogram-based median filter"

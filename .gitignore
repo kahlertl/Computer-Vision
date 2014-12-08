@@ -4,7 +4,7 @@ Makefile
 cmake_install.cmake
 
 # Binaries
-task_1_colored_regisions/color_dist
-task_2_homography/homography
-task_2_camera_perspective/camera_perspective
+lab_1_colored_regions/color_dist
+lab_2_homography/homography
+lab_2_camera_perspective/camera_perspective
 exercise_2_fast_median_filter/fast_median_filter

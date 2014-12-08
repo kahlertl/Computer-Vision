@@ -1,7 +1,12 @@
 # Exercise 2: Fast Median Filter
 
-The program uses the histogram approach from Thomas S. Huang as described in the
+This program uses the histogram approach from Thomas S. Huang as described in the
 paper [A Fast Two-Dimensional Median Filtering Algorithm, 1979](https://www.freelists.org/archives/ingsw3/11-2013/pdfNNRwXsvXQN.pdf).
+It is linear with respect to the filter radius.
+
+There is a constant time algorithm described in [Median Filtering in Constant Time](http://vision.gel.ulaval.ca/~perreaul/publications/Id699_2007.pdf)
+by Simon Perreault and Patrick Hebert. But there was not enough time to get a proper implementation.
+
 
 ## Build
 
@@ -15,6 +20,7 @@ $ make
 # Read the help page to get further information
 $ ./fast_median_filter --help
 ```
+
 
 ## Performance
 

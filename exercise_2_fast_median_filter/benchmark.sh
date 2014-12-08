@@ -1,7 +1,7 @@
 #!/bin/bash
 range=$(seq 1 30)
 
-for image in "fruits.jpg" "green-eye1.jpg"; do
+for image in "fruits.jpg" "green-eye.jpg"; do
     for radius in $range; do
         perf stat \
             --repeat 5 \

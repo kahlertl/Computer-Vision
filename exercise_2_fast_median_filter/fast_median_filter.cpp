@@ -68,10 +68,9 @@ void huang_median()
     // init histogram
     for (int row = 0; row < window_size; row++) {
         for (int col = 0; col < window_size; col++) {
-            Vec3b pixel = image.at<Vec3b>(row,col);
-            histogram.b[pixel[0]]++;
-            histogram.g[pixel[1]]++;
-            histogram.r[pixel[2]]++;
+            histogram.b[image.at<Vec3b>(row,col)[0]]++;
+            histogram.g[image.at<Vec3b>(row,col)[1]]++;
+            histogram.r[image.at<Vec3b>(row,col)[2]]++;
         }
     }
 
@@ -89,19 +88,17 @@ void huang_median()
             // remove left column
             // cout << "Remove right column " << (col - radius - 1) << endl;
             for (int i = 0; i < window_size; i++) {
-                Vec3b pixel = image.at<Vec3b>(row - radius + i, col - radius - 1);
-                histogram.b[pixel[0]]--;
-                histogram.g[pixel[1]]--;
-                histogram.r[pixel[2]]--;
+                histogram.b[image.at<Vec3b>(row - radius + i, col - radius - 1)[0]]--;
+                histogram.g[image.at<Vec3b>(row - radius + i, col - radius - 1)[1]]--;
+                histogram.r[image.at<Vec3b>(row - radius + i, col - radius - 1)[2]]--;
             }
 
             // add right column
             // cout << "Add right column " << (col + radius) << endl;
             for (int i = 0; i < window_size; i++) {
-                Vec3b pixel = image.at<Vec3b>(row - radius + i, col + radius);
-                histogram.b[pixel[0]]++;
-                histogram.g[pixel[1]]++;
-                histogram.r[pixel[2]]++;
+                histogram.b[image.at<Vec3b>(row - radius + i, col + radius)[0]]++;
+                histogram.g[image.at<Vec3b>(row - radius + i, col + radius)[1]]++;
+                histogram.r[image.at<Vec3b>(row - radius + i, col + radius)[2]]++;
             }
 
             filtered_image.at<Vec3b>(row,col)[0] = histo_median(histogram.b);
@@ -121,10 +118,9 @@ void huang_median()
         // cout << "Remove right top row " << (row - radius - 1) << ": ";
         for (int col = image.cols - window_size; col < image.cols; col++) {
             // cout << col << " ";
-            Vec3b pixel = image.at<Vec3b>(row - radius - 1, col);
-            histogram.b[pixel[0]]--;
-            histogram.g[pixel[1]]--;
-            histogram.r[pixel[2]]--;
+            histogram.b[image.at<Vec3b>(row - radius - 1, col)[0]]--;
+            histogram.g[image.at<Vec3b>(row - radius - 1, col)[1]]--;
+            histogram.r[image.at<Vec3b>(row - radius - 1, col)[2]]--;
         }
         // cout << endl;
 
@@ -132,10 +128,9 @@ void huang_median()
         // cout << "Add right bottom row " << (row + radius) << ": ";
         for (int col = image.cols - window_size; col < image.cols; col++) {
             // cout << col << " ";
-            Vec3b pixel = image.at<Vec3b>(row + radius, col);
-            histogram.b[pixel[0]]++;
-            histogram.g[pixel[1]]++;
-            histogram.r[pixel[2]]++;
+            histogram.b[image.at<Vec3b>(row + radius, col)[0]]++;
+            histogram.g[image.at<Vec3b>(row + radius, col)[1]]++;
+            histogram.r[image.at<Vec3b>(row + radius, col)[2]]++;
         }
         // cout << endl;
 
@@ -149,19 +144,17 @@ void huang_median()
             // remove right column
             // cout << "Remove right column" << (col + radius + 1) << endl;
             for (int i = 0; i < window_size; i++) {
-                Vec3b pixel = image.at<Vec3b>(row - radius + i, col + radius + 1);
-                histogram.b[pixel[0]]--;
-                histogram.g[pixel[1]]--;
-                histogram.r[pixel[2]]--;
+                histogram.b[image.at<Vec3b>(row - radius + i, col + radius + 1)[0]]--;
+                histogram.g[image.at<Vec3b>(row - radius + i, col + radius + 1)[1]]--;
+                histogram.r[image.at<Vec3b>(row - radius + i, col + radius + 1)[2]]--;
             }
 
             // add left column
             // cout << "Add left column " << (col - radius) << endl;
             for (int i = 0; i < window_size; i++) {
-                Vec3b pixel = image.at<Vec3b>(row - radius + i, col - radius);
-                histogram.b[pixel[0]]++;
-                histogram.g[pixel[1]]++;
-                histogram.r[pixel[2]]++;
+                histogram.b[image.at<Vec3b>(row - radius + i, col - radius)[0]]++;
+                histogram.g[image.at<Vec3b>(row - radius + i, col - radius)[1]]++;
+                histogram.r[image.at<Vec3b>(row - radius + i, col - radius)[2]]++;
             }
 
             filtered_image.at<Vec3b>(row,col)[0] = histo_median(histogram.b);
@@ -181,20 +174,18 @@ void huang_median()
         // cout << "Remove left top row " << (row - radius - 1) << ": ";
         for (int col = 0; col < window_size; col++) {
             // cout << col << " ";
-            Vec3b pixel = image.at<Vec3b>(row - radius - 1, col);
-            histogram.b[pixel[0]]--;
-            histogram.g[pixel[1]]--;
-            histogram.r[pixel[2]]--;
+            histogram.b[image.at<Vec3b>(row - radius - 1, col)[0]]--;
+            histogram.g[image.at<Vec3b>(row - radius - 1, col)[1]]--;
+            histogram.r[image.at<Vec3b>(row - radius - 1, col)[2]]--;
         }
         // cout << endl;
 
         // add bottom row
         // cout << "Add left bottom row " << (row + radius) << endl;
         for (int col = 0; col < window_size; col++) {
-            Vec3b pixel = image.at<Vec3b>(row + radius, col);
-            histogram.b[pixel[0]]++;
-            histogram.g[pixel[1]]++;
-            histogram.r[pixel[2]]++;
+            histogram.b[image.at<Vec3b>(row + radius, col)[0]]++;
+            histogram.g[image.at<Vec3b>(row + radius, col)[1]]++;
+            histogram.r[image.at<Vec3b>(row + radius, col)[2]]++;
         }
 
         // cout << "Pass row " << row << endl;

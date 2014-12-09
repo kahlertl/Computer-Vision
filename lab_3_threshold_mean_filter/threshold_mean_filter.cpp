@@ -13,16 +13,20 @@ using namespace cv;
 
 // images
 Mat image;
-Mat filtered_image;
+Mat image_median;
+Mat image_filtered;
 
 // filter parameters
 int radius = 1;
 int window_size;
 int window_area;
 
-// if the median is greater of equal this threshold the median
-// is applied
-int threshold = 0;
+// This two thresholds creates a range. If the difference between
+// the origianl image and the median filtered image is outside
+// this range, the median filtered pixel will be applied, otherwise
+// the pixel from the original image will be chossen.
+int threshold_white = 255;
+int threshold_black = 0;
 
 // histogram
 int histogram[256];
@@ -51,18 +55,6 @@ static inline int histo_median(const int (&histogram)[256])
 }
 
 
-static inline bool above_threshold(const int (&histogram)[256])
-{
-    for (int i = 0; i < threshold; i++) {
-        if (histogram[i] > 0) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-
 void huang_median()
 {
     // zero the histogram
@@ -83,9 +75,7 @@ void huang_median()
      * do not need to initialize the historgram for each row. 
      */
     while (true) {
-        filtered_image.at<uchar>(row,radius) = (above_threshold(histogram))
-                                               ? histo_median(histogram)
-                                               : image.at<uchar>(row,radius);
+        image_median.at<uchar>(row,radius) = histo_median(histogram);
 
         // move right
         for (int col = radius + 1; col < image.cols - radius; col++) {
@@ -100,9 +90,7 @@ void huang_median()
             }
 
             // calculate median for each channel
-            filtered_image.at<uchar>(row,col) = (above_threshold(histogram))
-                                                ? histo_median(histogram)
-                                                : image.at<uchar>(row,col);
+            image_median.at<uchar>(row,col) = histo_median(histogram);
         }
 
 
@@ -124,9 +112,7 @@ void huang_median()
             histogram[image.at<uchar>(row + radius, col)]++;
         }
 
-        filtered_image.at<uchar>(row,image.cols - radius - 1) = (above_threshold(histogram))
-                                                                ? histo_median(histogram)
-                                                                : image.at<uchar>(row,image.cols - radius - 1);
+        image_median.at<uchar>(row,image.cols - radius - 1) = histo_median(histogram);
 
         // move left
         for (int col = image.cols - radius - 2; col >= radius; col--) {
@@ -140,9 +126,7 @@ void huang_median()
                 histogram[image.at<uchar>(row - radius + i, col - radius)]++;
             }
 
-            filtered_image.at<uchar>(row,col) = (above_threshold(histogram))
-                                                ? histo_median(histogram)
-                                                : image.at<uchar>(row,col);
+            image_median.at<uchar>(row,col) = histo_median(histogram);
         }
 
         // left edge. move down
@@ -168,14 +152,32 @@ void huang_median()
 
 void on_trackbar(int, void*)
 {
+    // the radius could be changed via the trackbar
+    // recalculate the median filter window
     window_size = 2 * radius + 1;
     window_area = window_size * window_size;
 
-    filtered_image = Mat::zeros(image.size(), image.type());
+    image_median   = Mat::zeros(image.size(), image.type());
+
+    // compute the difference between the two images
+    image_filtered = image - image_median;
 
     huang_median();
 
-    imshow("Median filter", filtered_image);
+
+    for (int row = 0; row < image.rows; row++) {
+        for (int col = 0; col < image.cols; col++) {
+            // If the difference is outside the threshold range, we choose the median filtered
+            // pixel. Otherwise, the original image will be choosen.
+            if (image_filtered.at<uchar>(row,col) > threshold_white || image_filtered.at<uchar>(row,col) < threshold_black) {
+                image_filtered.at<uchar>(row,col) = image_median.at<uchar>(row,col);
+            } else {
+                image_filtered.at<uchar>(row,col) = image.at<uchar>(row,col);
+            }
+        }
+    }
+
+    imshow("Threshold median filter", image_filtered);
 }
 
 
@@ -196,9 +198,10 @@ int main(int argc, const char* argv[])
     }
 
     // create interactive scene
-    namedWindow("Median filter", 1);
-    createTrackbar("radius", "Median filter",    &radius,    50,  on_trackbar);
-    createTrackbar("threshold", "Median filter", &threshold, 255, on_trackbar);
+    namedWindow("Threshold median filter", 1);
+    createTrackbar("radius", "Threshold median filter",    &radius,    50,  on_trackbar);
+    createTrackbar("threshold white", "Threshold median filter", &threshold_white, 255, on_trackbar);
+    createTrackbar("threshold black", "Threshold median filter", &threshold_black, 255, on_trackbar);
 
     // initial rendering
     on_trackbar(0, NULL);

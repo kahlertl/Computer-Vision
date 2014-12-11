@@ -26,5 +26,5 @@ $ cmake .
 $ make
 
 # execute
-$ ./equalize_histo rocks.jpg
+$ ./histo_color rocks.jpg
 ```

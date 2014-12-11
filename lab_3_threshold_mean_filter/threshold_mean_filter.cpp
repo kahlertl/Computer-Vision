@@ -21,12 +21,9 @@ int radius = 1;
 int window_size;
 int window_area;
 
-// This two thresholds creates a range. If the difference between
-// the origianl image and the median filtered image is outside
-// this range, the median filtered pixel will be applied, otherwise
-// the pixel from the original image will be chossen.
-int threshold_white = 255;
-int threshold_black = 0;
+// if the absolute difference between the image and the median 
+// must be greater than this threshold to be filtered
+int threshold = 42;
 
 // histogram
 int histogram[256];
@@ -158,21 +155,23 @@ void on_trackbar(int, void*)
     window_area = window_size * window_size;
 
     image_median   = Mat::zeros(image.size(), image.type());
-
-    // compute the difference between the two images
-    image_filtered = image - image_median;
+    image_filtered = Mat::zeros(image.rows - window_size, image.cols - window_size, image.type());
 
     huang_median();
 
+    for (int row = radius; row < image_filtered.rows; row++) {
+        for (int col = radius; col < image_filtered.cols; col++) {
+            image_filtered.at<uchar>(row, col) = abs(image.at<uchar>(row + radius, col + radius) -
+                                                     image_median.at<uchar>(row + radius, col + radius));
+        }
+    }
 
-    for (int row = 0; row < image.rows; row++) {
-        for (int col = 0; col < image.cols; col++) {
-            // If the difference is outside the threshold range, we choose the median filtered
-            // pixel. Otherwise, the original image will be choosen.
-            if (image_filtered.at<uchar>(row,col) > threshold_white || image_filtered.at<uchar>(row,col) < threshold_black) {
-                image_filtered.at<uchar>(row,col) = image_median.at<uchar>(row,col);
+    for (int row = 0; row < image_filtered.rows; row++) {
+        for (int col = 0; col < image_filtered.cols; col++) {
+            if (image_filtered.at<uchar>(row,col) > threshold) {
+                image_filtered.at<uchar>(row,col) = image_median.at<uchar>(row + radius, col + radius);
             } else {
-                image_filtered.at<uchar>(row,col) = image.at<uchar>(row,col);
+                image_filtered.at<uchar>(row,col) = image.at<uchar>(row + radius, col + radius);
             }
         }
     }
@@ -199,9 +198,8 @@ int main(int argc, const char* argv[])
 
     // create interactive scene
     namedWindow("Threshold median filter", 1);
-    createTrackbar("radius", "Threshold median filter",    &radius,    50,  on_trackbar);
-    createTrackbar("threshold white", "Threshold median filter", &threshold_white, 255, on_trackbar);
-    createTrackbar("threshold black", "Threshold median filter", &threshold_black, 255, on_trackbar);
+    createTrackbar("radius",    "Threshold median filter", &radius,     50, on_trackbar);
+    createTrackbar("threshold", "Threshold median filter", &threshold, 255, on_trackbar);
 
     // initial rendering
     on_trackbar(0, NULL);

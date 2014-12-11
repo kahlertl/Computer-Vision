@@ -21,5 +21,5 @@ $ cmake .
 $ make
 
 # execute
-$ ./histo_match spine.jpg
+$ ./histo_gray spine.jpg
 ```

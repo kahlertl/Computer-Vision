@@ -6,21 +6,36 @@
 using namespace std;
 using namespace cv;
 
-Mat src;
-Mat dst;
+Mat image;
+Mat sharpend;
 
 // scaling factor for the substraction of the smoothed image
-int alpha = 25;
+int alpha = 10;
 
 void on_trackbar(int, void*)
 {
-    // blure image
-    GaussianBlur(src, dst, Size(0, 0), 3);
-    // subtract the smoothed version from the source image (in a weighted way,
-    // so th values of a constant area remain constant)
-    addWeighted(src, 1. + (alpha / 100.), dst, -(alpha / 100.), 0, dst);
+    // scaling factor
+    float scale = alpha / 10.;
 
-    imshow("Unsharp masking", dst);
+    // Unsharp masking kernel
+    // 
+    // constructed from the formula:
+    // 
+    //     sharpened = image + scale * (image - blur * image) = image * kernel
+    // 
+    //              [ 0 0 0 ]           ( [ 0 0 0 ]   [ 1/16 1/8 1/16 ] )   
+    //     kernel = [ 0 1 0 ] + scale * ( [ 0 1 0 ] - [  1/8 1/4  1/8 ] )
+    //              [ 0 0 0 ]           ( [ 0 0 0 ]   [ 1/16 1/8 1/16 ] )
+    //
+    Mat kernel = (Mat_<float>(3,3) << -1./16 * scale,            -1./8 * scale, -1./16 * scale,
+                                       -1./8 * scale, 1 + scale - 1./4 * scale,  -1./8 * scale,
+                                      -1./16 * scale,            -1./8 * scale, -1./16 * scale );
+
+    // compute convolution
+    filter2D(image, sharpend, -1, kernel);
+
+    // display result
+    imshow("Unsharp masking", sharpend);
 }
 
 int main(int argc, char const *argv[])
@@ -32,9 +47,9 @@ int main(int argc, char const *argv[])
     }
 
     // load image
-    src = imread( argv[1], CV_LOAD_IMAGE_COLOR);
+    image = imread( argv[1], CV_LOAD_IMAGE_COLOR);
 
-    if (src.empty()) {
+    if (image.empty()) {
         cerr << "Error cannot read " << argv[1] << endl;
 
         return 1;
@@ -42,7 +57,7 @@ int main(int argc, char const *argv[])
 
     // display
     namedWindow("Original image", CV_WINDOW_AUTOSIZE);
-    imshow("Original image", src);
+    imshow("Original image", image);
 
     namedWindow("Unsharp masking", CV_WINDOW_AUTOSIZE);
     createTrackbar("alpha", "Unsharp masking", &alpha, 100, on_trackbar);

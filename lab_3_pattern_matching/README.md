@@ -25,5 +25,5 @@ $ cmake .
 $ make
 
 # execute
-$ ./correlation dog.jpg phantomdogs.jpg
+$ ./match dog.jpg phantomdogs.jpg
 ```

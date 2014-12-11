@@ -1,6 +1,0 @@
-cmake_minimum_required(VERSION 2.8)
-project( correlation )
-find_package( OpenCV REQUIRED )
-add_executable( correlation correlation.cpp )
-target_link_libraries( correlation ${OpenCV_LIBS} )
-set(CMAKE_CXX_FLAGS "-std=c++0x")

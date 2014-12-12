@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cmath> // exp()
 
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
@@ -12,7 +13,7 @@ Mat filtered_image;
 // scaling factor for power low transformation
 int g = 10;
 // scaling factor for log transformation
-int alpha = 10;
+int alpha = 100;
 
 
 void power_law_transformation(int, void*)
@@ -33,13 +34,16 @@ void power_law_transformation(int, void*)
 
 void log_transformation(int, void*)
 {
+    // scaling factor
+    float scale = exp(alpha / 1000.0) - 1.0;
+
     // normalizing constant to keep the value [0-255]
-    float c = 255 / log(1 + 255);
+    float c = 255 / log(1 + scale * 255);
 
     // apply transformation function on each pixel in the image
     for (int row = 0; row < image.rows; row++) {
         for (int col = 0; col < image.cols; col++) {
-            filtered_image.at<uchar>(row,col) = round(c * log(1 + image.at<uchar>(row,col)));
+            filtered_image.at<uchar>(row,col) = round(c * log(1 + scale * image.at<uchar>(row,col)));
         }
     }
 
@@ -70,7 +74,7 @@ int main(int argc, char const *argv[])
     createTrackbar("gamma", "Power law transformation", &g, 127, power_law_transformation);
 
     namedWindow("Log transformation", 1);
-    createTrackbar("alpha", "Log transformation", &alpha, 127, log_transformation);
+    createTrackbar("alpha", "Log transformation", &alpha, 1200, log_transformation);
 
     // initial rendering
     power_law_transformation(0, 0);

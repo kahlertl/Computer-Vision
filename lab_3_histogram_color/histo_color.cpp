@@ -65,6 +65,10 @@ int main( int argc, char** argv )
     vector<Mat> channels;
     split(src,  channels);
 
+
+    Mat hist_bgr[3];
+    Mat cdf_bgr[3];
+
     // establish the number of bins
     int hist_size = 256;
 
@@ -72,18 +76,12 @@ int main( int argc, char** argv )
     float range[]           = { 0, 256 } ;
     const float* hist_range = { range };
 
-    bool uniform = true;
-    bool accumulate = false;
+    // compute the histograms for each channel
+    calcHist(&channels[0], 1, 0, Mat(), hist_bgr[0], 1, &hist_size, &hist_range, true, false);
+    calcHist(&channels[1], 1, 0, Mat(), hist_bgr[1], 1, &hist_size, &hist_range, true, false);
+    calcHist(&channels[2], 1, 0, Mat(), hist_bgr[2], 1, &hist_size, &hist_range, true, false);
 
-    Mat hist_bgr[3];
-    Mat cdf_bgr[3];
-
-    // compute the histograms:
-    calcHist(&channels[0], 1, 0, Mat(), hist_bgr[0], 1, &hist_size, &hist_range, uniform, accumulate);
-    calcHist(&channels[1], 1, 0, Mat(), hist_bgr[1], 1, &hist_size, &hist_range, uniform, accumulate);
-    calcHist(&channels[2], 1, 0, Mat(), hist_bgr[2], 1, &hist_size, &hist_range, uniform, accumulate);
-
-    // compute CDFs of the histograms
+    // compute CDF for each channel histogram
     cumsum(hist_bgr[0], cdf_bgr[0]);
     cumsum(hist_bgr[1], cdf_bgr[1]);
     cumsum(hist_bgr[2], cdf_bgr[2]);
@@ -120,7 +118,6 @@ int main( int argc, char** argv )
     draw_histogram(cdf_bgr[0], canvas_cdf, {255,  0,    0});
     draw_histogram(cdf_bgr[1], canvas_cdf, {  0, 255,   0});
     draw_histogram(cdf_bgr[2], canvas_cdf, {  0,   0, 255});
-
 
     // display
     namedWindow("Histograms", CV_WINDOW_AUTOSIZE);

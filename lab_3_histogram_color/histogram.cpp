@@ -1,0 +1,1 @@
+../lab_3_histogram_gray/histogram.cpp

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cmath> // exp()
 
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
@@ -9,10 +10,13 @@ using namespace cv;
 Mat image;
 Mat filtered_image;
 
-// gamma
+// scaling factor for power low transformation
 int g = 10;
+// scaling factor for log transformation
+int alpha = 100;
 
-void on_trackbar(int, void*)
+
+void power_law_transformation(int, void*)
 {
     // normalizing constant to keep the value [0-255]
     float c = 255 / pow(255 + 1, g / 10.);
@@ -24,8 +28,41 @@ void on_trackbar(int, void*)
         }
     }
 
-    imshow("Gray transformation", filtered_image);
+    imshow("Power law transformation", filtered_image);
 }
+
+
+void log_transformation(int, void*)
+{
+    // scaling factor
+    float scale = exp(alpha / 1000.0) - 1.0;
+
+    // normalizing constant to keep the value [0-255]
+    float c = 255 / log(1 + scale * 255);
+
+    // apply transformation function on each pixel in the image
+    for (int row = 0; row < image.rows; row++) {
+        for (int col = 0; col < image.cols; col++) {
+            filtered_image.at<uchar>(row,col) = round(c * log(1 + scale * image.at<uchar>(row,col)));
+        }
+    }
+
+    imshow("Log transformation", filtered_image);
+}
+
+
+void negative_transformation(int, void*)
+{
+    // apply transformation function on each pixel in the image
+    for (int row = 0; row < image.rows; row++) {
+        for (int col = 0; col < image.cols; col++) {
+            filtered_image.at<uchar>(row,col) = 255 - image.at<uchar>(row,col);
+        }
+    }
+
+    imshow("Negative transformation", filtered_image);
+}
+
 
 int main(int argc, char const *argv[])
 {
@@ -46,11 +83,19 @@ int main(int argc, char const *argv[])
     filtered_image = Mat::zeros(image.size(), image.type());
 
     // create interactive scene
-    namedWindow("Gray transformation", 1);
-    createTrackbar("gamma", "Gray transformation", &g, 127, on_trackbar);
+    namedWindow("Power law transformation", 1);
+    createTrackbar("gamma", "Power law transformation", &g, 127, power_law_transformation);
+
+    namedWindow("Log transformation", 1);
+    createTrackbar("alpha", "Log transformation", &alpha, 1200, log_transformation);
+
+    namedWindow("Negative transformation", 1);
+
 
     // initial rendering
-    on_trackbar(0, NULL);
+    power_law_transformation(0, 0);
+    log_transformation(0, 0);
+    negative_transformation(0, 0);
 
     // wait indefinitly on a key stroke
     waitKey(0);

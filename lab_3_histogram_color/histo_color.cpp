@@ -8,39 +8,6 @@
 using namespace std;
 using namespace cv;
 
-/**
- * Compute cumulative distribution function
- */
-void cumsum(Mat& hist, Mat& cdf)
-{
-    cdf = Mat::zeros(hist.size(), hist.type());
-
-    float sum = 0;
-    for (int row = 0; row < hist.rows; row++) {
-        sum += hist.at<float>(row, 0);
-        cdf.at<float>(row, 0) = sum;
-    }
-}
-
-void histogram_equalization(const vector<Mat> &channels, const Mat (&hist_bgr)[3])
-{
-    // compute average histogram from the 3 channels
-    Mat hist_average = Mat::zeros(hist_bgr[0].size(), hist_bgr[0].type());
-
-    for (int row = 0; row < hist_bgr[0].rows; row++) {
-        hist_average.at<float>(row, 0) = (hist_bgr[0].at<float>(row, 0) +
-                                          hist_bgr[1].at<float>(row, 0) +
-                                          hist_bgr[2].at<float>(row, 0)) / 3;
-        // cout << hist_bgr[0].at<float>(row, 0) << " "
-        //      << hist_bgr[1].at<float>(row, 0) << " "
-        //      << hist_bgr[2].at<float>(row, 0) << " -> ";
-        // cout << ((hist_bgr[0].at<float>(row, 0) +
-        //           hist_bgr[1].at<float>(row, 0) +
-        //           hist_bgr[2].at<float>(row, 0)) / 3) << endl;
-    }
-
-    cout << hist_average << endl;
-}
 
 int main( int argc, char** argv )
 {
@@ -63,7 +30,7 @@ int main( int argc, char** argv )
 
     // separate the image in 3 places (B, G, R)
     vector<Mat> channels;
-    split(image,  channels);
+    split(image, channels);
 
 
     Mat hist_bgr[3];
@@ -97,7 +64,9 @@ int main( int argc, char** argv )
     cumsum(hist_bgr[2],  cdf_bgr[2]);
     cumsum(average_hist, average_cdf);
 
-    // create final image from the separatly histogram-equalized channels
+
+    // Histogram equalization
+    // 
     Mat equalized;
     Mat channels_equal[3] = {
         Mat::zeros(channels[0].size(), channels[0].type()),
@@ -110,10 +79,12 @@ int main( int argc, char** argv )
     equalizeHist(channels[1], channels_equal[1]);
     equalizeHist(channels[2], channels_equal[2]);
 
+    // create final image from the separatly histogram-equalized channels
     merge(channels_equal, 3, equalized);
 
 
-
+    // Histogram matching
+    // 
     Mat matched;
     Mat channels_matched[3] = {
         Mat::zeros(channels[0].size(), channels[0].type()),
@@ -121,10 +92,13 @@ int main( int argc, char** argv )
         Mat::zeros(channels[2].size(), channels[2].type()),
     };
 
+    // apply histogram matching with the average of all CDFs for all channels
+    // separatly
     histogram_matching(channels[0], average_cdf, channels_matched[0]);
     histogram_matching(channels[1], average_cdf, channels_matched[1]);
     histogram_matching(channels[2], average_cdf, channels_matched[2]);
 
+    // create final image from the sepratly matched channels
     merge(channels_matched, 3, matched);
 
 

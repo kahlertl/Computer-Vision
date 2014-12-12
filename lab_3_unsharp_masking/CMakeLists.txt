@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( unsharp )
+find_package( OpenCV REQUIRED )
+add_executable( unsharp unsharp.cpp )
+target_link_libraries( unsharp ${OpenCV_LIBS} )
+set(CMAKE_CXX_FLAGS "-std=c++0x")

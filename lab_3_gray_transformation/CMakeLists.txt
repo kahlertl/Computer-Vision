@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( gray_trans )
+find_package( OpenCV REQUIRED )
+add_executable( gray_trans gray_trans.cpp )
+target_link_libraries( gray_trans ${OpenCV_LIBS} )
+set(CMAKE_CXX_FLAGS "-std=c++0x")

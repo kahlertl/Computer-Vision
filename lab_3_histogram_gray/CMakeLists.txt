@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( histo_gray )
+find_package( OpenCV REQUIRED )
+add_executable( histo_gray histo_gray.cpp histogram.cpp )
+target_link_libraries( histo_gray ${OpenCV_LIBS} )
+set(CMAKE_CXX_FLAGS "-std=c++0x")

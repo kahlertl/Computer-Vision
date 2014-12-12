@@ -51,6 +51,19 @@ void log_transformation(int, void*)
 }
 
 
+void negative_transformation(int, void*)
+{
+    // apply transformation function on each pixel in the image
+    for (int row = 0; row < image.rows; row++) {
+        for (int col = 0; col < image.cols; col++) {
+            filtered_image.at<uchar>(row,col) = 255 - image.at<uchar>(row,col);
+        }
+    }
+
+    imshow("Negative transformation", filtered_image);
+}
+
+
 int main(int argc, char const *argv[])
 {
     if (argc != 2) {
@@ -76,9 +89,13 @@ int main(int argc, char const *argv[])
     namedWindow("Log transformation", 1);
     createTrackbar("alpha", "Log transformation", &alpha, 1200, log_transformation);
 
+    namedWindow("Negative transformation", 1);
+
+
     // initial rendering
     power_law_transformation(0, 0);
     log_transformation(0, 0);
+    negative_transformation(0, 0);
 
     // wait indefinitly on a key stroke
     waitKey(0);

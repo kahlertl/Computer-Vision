@@ -33,16 +33,18 @@ git checkout $OpenCV_VERSION
 cd release-$OpenCV_VERSION
 
 # Build OpenCV library
-cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local ..
-make
+cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local .. > cmake.log
+make > make.log
 
 # Walk through all tasks
-for dir in "$PROJECT_DIR/lab_*" "$PROJECT_DIR/exercise_*"; do
-    # Go into task directory ...
-    cd $dir
+for dir_list in "$PROJECT_DIR/lab_*" "$PROJECT_DIR/exercise_*"; do
+    for dir in $dir_list; do
+        # Go into task directory ...
+        cd $dir
 
-    # ... and finally build the task
-    cmake -D OpenCV_DIR=~/opencv/release-$OpenCV_VERSION .
-    make
+        # ... and finally build the task
+        cmake -D OpenCV_DIR=~/opencv/release-$OpenCV_VERSION .
+        make
+    done
 done
 

@@ -84,7 +84,7 @@ void histogram_matching(Mat &image, Mat &pattern_cdf, Mat &match)
 
     for (int row = 0; row < image.rows; row++) {
         for (int col = 0; col < image.cols; col++) {
-            image.at<uchar>(row,col) = lut.at<int>(image.at<uchar>(row,col));
+            match.at<uchar>(row,col) = lut.at<int>(image.at<uchar>(row,col));
         }
     }
 }

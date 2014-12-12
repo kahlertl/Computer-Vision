@@ -12,7 +12,6 @@ using namespace cv;
 int main(int argc, char** argv)
 {
     Mat image;
-    Mat equalized;
     Mat pattern;
 
     if (argc != 3) {
@@ -57,11 +56,11 @@ int main(int argc, char** argv)
     // compute cumulative distribution function
     Mat cdf_image;
     Mat cdf_pattern;
+    Mat equalized;
 
     cumsum(hist_image,   cdf_image);
     cumsum(hist_pattern, cdf_pattern);
     
-
     // canvas for histograms and CDFs
     int hist_width  = 512;
     int hist_height = 400;
@@ -72,8 +71,22 @@ int main(int argc, char** argv)
     draw_histogram(cdf_image ,  canvas_hist, {255,   0,   0});
     draw_histogram(cdf_pattern, canvas_hist, {  0, 255,   0});
 
-    // apply histogram equalization
+    // histogram equalization
     equalizeHist(image, equalized);
+
+    // histogram matching
+    Mat pattern_hist;
+    Mat pattern_cdf;
+    Mat matched;
+
+    // compute CDF of the pattern image
+    calcHist(&pattern, 1, 0, Mat(), pattern_hist, 1, &hist_size, &hist_range, true, false);
+    cumsum(pattern_hist, pattern_cdf);
+
+    // perform the matching
+    histogram_matching(image, pattern_cdf, matched);
+
+
 
     // display
     namedWindow("Source", CV_WINDOW_AUTOSIZE);
@@ -84,8 +97,6 @@ int main(int argc, char** argv)
 
     namedWindow("Histogram Equalization", CV_WINDOW_AUTOSIZE);
     imshow("Histogram Equalization", equalized);
-
-    histogram_matching(image, pattern, image);
 
     namedWindow("Histogram Matching", CV_WINDOW_AUTOSIZE);
     imshow("Histogram Matching", image);

@@ -39,7 +39,7 @@ void draw_histogram(const Mat &hist, Mat &canvas, Scalar color)
 }
 
 
-void histogram_matching(Mat &image, Mat &pattern, Mat &match)
+void histogram_matching(Mat &image, Mat &pattern_cdf, Mat &match)
 {
     // initialize matched image matrix if empty
     if (match.empty()) {
@@ -57,17 +57,13 @@ void histogram_matching(Mat &image, Mat &pattern, Mat &match)
     // image with the nice histogram
     Mat image_hist;
     Mat image_cdf;
-    Mat pattern_hist;
-    Mat pattern_cdf;
 
-    calcHist(&image,   1, 0, Mat(), image_hist,   1, &hist_size, &hist_range, true, false);
-    calcHist(&pattern, 1, 0, Mat(), pattern_hist, 1, &hist_size, &hist_range, true, false);
+    calcHist(&image, 1, 0, Mat(), image_hist, 1, &hist_size, &hist_range, true, false);
 
     cumsum(image_hist,   image_cdf);
-    cumsum(pattern_hist, pattern_cdf);
 
     // create look up table
-    Mat lut = Mat::zeros(pattern_hist.size(), pattern_hist.type());
+    Mat lut = Mat::zeros(image_hist.size(), image_hist.type());
 
     for (int i = 0; i < hist_size; i++) {
         float frequency = image_cdf.at<float>(i);

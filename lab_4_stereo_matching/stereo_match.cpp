@@ -6,7 +6,7 @@ using namespace std;
 using namespace cv;
 
 
-static float matchSSD(const int radius, const Mat& image, const Point2i center,
+static float matchSSD(const int radius, const Mat& left, const Mat& right, const Point2i center,
                       const int max_disparity, float* best_match, int* disparity)
 {
     // we do not want to cast rapidly from int to float, because the SSD is an
@@ -23,11 +23,11 @@ static float matchSSD(const int radius, const Mat& image, const Point2i center,
             for (int pcol = -radius; pcol < radius; pcol++) {
                 // grayscale images => uchar
                 // patch - image
-                int diff_right =   image.at<uchar>(center.y + prow, center.x + pcol)
-                                 - image.at<uchar>(center.y + prow, center.x + pcol + offset);
+                int diff_right =   left.at<uchar>(center.y + prow, center.x + pcol)
+                                 - right.at<uchar>(center.y + prow, center.x + pcol + offset);
 
-                int diff_left  =   image.at<uchar>(center.y + prow, center.x + pcol)
-                                 - image.at<uchar>(center.y + prow, center.x + pcol - offset);
+                int diff_left  =   left.at<uchar>(center.y + prow, center.x + pcol)
+                                 - right.at<uchar>(center.y + prow, center.x + pcol - offset);
 
                 ssd_right += diff_right * diff_right;
                 ssd_left += diff_left * diff_left;
@@ -67,7 +67,7 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
             // float best_match = 0;
             float match = 0;
 
-            matchSSD(radius, left, Point2i(lcol, lrow), max_disparity, &match, &shift);
+            matchSSD(radius, left, right, Point2i(lcol, lrow), max_disparity, &match, &shift);
 
             // if (match > best_match) {
                 // best_match = match;

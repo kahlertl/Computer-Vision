@@ -14,10 +14,10 @@ static void usage()
     cout << "  options:" << endl;
     cout << "    -h, --help            Show this help message" << endl;
     cout << "    -r, --radius          Block radius for stereo matching. Default: 3" << endl;
-    cout << "    -m, --max-disparity   Shrinks the range that will be used" << endl;
+    cout << "    -d, --max-disparity   Shrinks the range that will be used" << endl;
     cout << "                          for block matching. Default: 16" << endl;
     cout << "    -t, --target          Name of output file. Default: out.png" << endl;
-    cout << "    -f, --filter          Radius of the median filter applied to " << endl;
+    cout << "    -m, --median          Radius of the median filter applied to " << endl;
     cout << "                          the disparity map. If 0, this feature is " << endl;
     cout << "                          disabled. Default: 2" << endl;
 }
@@ -261,8 +261,8 @@ int main(int argc, char const *argv[])
         { "help",           no_argument,       0, 'h' },
         { "radius",         required_argument, 0, 'r' },
         { "target",         required_argument, 0, 't' },
-        { "max-disparity",  required_argument, 0, 'm' },
-        { "filter",         required_argument, 0, 'f' },
+        { "max-disparity",  required_argument, 0, 'd' },
+        { "median",         required_argument, 0, 'm' },
         0 // end of parameter list
     };
 
@@ -270,7 +270,7 @@ int main(int argc, char const *argv[])
     while (true) {
         int index = -1;
 
-        int result = getopt_long(argc, (char **) argv, "hr:t:m:f:", long_options, &index);
+        int result = getopt_long(argc, (char **) argv, "hr:t:d:m:", long_options, &index);
 
         // end of parameter list
         if (result == -1) {
@@ -290,7 +290,7 @@ int main(int argc, char const *argv[])
                 }
                 break;
 
-            case 'm':
+            case 'd':
                 max_disparity = atoi(optarg);
                 if (max_disparity <= 0) {
                     cerr << argv[0] << ": Invalid maximal disparoty " << optarg << endl;
@@ -302,7 +302,7 @@ int main(int argc, char const *argv[])
                 target = optarg;
                 break;
 
-            case 'f':
+            case 'm':
                 median_radius = atoi(optarg);
                 if (median_radius < 0) {
                     cerr << argv[0] << ": Invalid median radius " << optarg << endl;

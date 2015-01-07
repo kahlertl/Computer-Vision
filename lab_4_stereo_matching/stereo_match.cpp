@@ -1,10 +1,44 @@
 #include <iostream>
+#include <getopt.h> // getopt_long()
 
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 
 using namespace std;
 using namespace cv;
+
+
+static void usage()
+{
+    cout << "Usage: ./stereo_match [options] left right" << endl;
+    cout << "  options:" << endl;
+    cout << "    -h, --help            Show this help message" << endl;
+    cout << "    -r, --radius          Filter radius. Default: 8" << endl;
+    cout << "    -m, --max-disparity   Shrinks the range that will be used" << endl;
+    cout << "                          for block matching. Default: 16" << endl;
+    cout << "    -t, --target          Name of output file. Default: out.png" << endl;
+}
+
+
+static int parsePositionalImage(Mat& image, const string& name, int argc, char const *argv[])
+{
+    if (optind >= argc) {
+        cerr << argv[0] << ": required argument: '" << name << "'" << endl;
+        usage();
+
+        return 1;
+    } else {
+        image = imread(argv[optind++], CV_LOAD_IMAGE_GRAYSCALE);
+
+        if (image.empty()) {
+            cerr << "Error: Cannot read '" << argv[optind] << "'" << endl;
+
+            return 1;
+        }
+    }
+
+    return 0;
+}
 
 
 static float matchSSD(const int radius, const Mat& left, const Mat& right, const Point2i center,
@@ -24,13 +58,13 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
         end = right.cols - center.x;
     }
 
-        // cout << "center.y = " << center.y << endl;
-        // cout << "start    = " << start << endl;
-        // cout << "center.y - start = " << (center.y - start) << endl;
-        // cout << "end = " << end << endl;
+    // cout << "center.y = " << center.y << endl;
+    // cout << "start    = " << start << endl;
+    // cout << "center.y - start = " << (center.y - start) << endl;
+    // cout << "end = " << end << endl;
 
-    Mat patch  = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
-    Mat search = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
+    // Mat patch  = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
+    // Mat search = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
 
     for (int col_offset = start; col_offset < end; col_offset += 1) {
         int ssd = 0;
@@ -39,8 +73,8 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
         for (int prow = -radius; prow < radius; prow++) {
             for (int pcol = -radius; pcol < radius; pcol++) {
 
-                patch.at<uchar>(prow + radius, pcol + radius)  = left.at<uchar>(center.y + prow, center.x + pcol);
-                search.at<uchar>(prow + radius, pcol + radius) = right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
+                // patch.at<uchar>(prow + radius, pcol + radius)  = left.at<uchar>(center.y + prow, center.x + pcol);
+                // search.at<uchar>(prow + radius, pcol + radius) = right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
 
                 // grayscale images => uchar
                 // patch - image
@@ -214,29 +248,75 @@ int main(int argc, char const *argv[])
     Mat img_right;
     Mat disparity;
 
-    if (argc != 3) {
-        cout << "Usage: ./stereo_match left right" << endl;
+    int radius = 8;
+    int max_disparity = 16;
+    string target = "out.png";
 
-        return 1;
+
+    const struct option long_options[] = {
+        { "help",           no_argument,       0, 'h' },
+        { "radius",         required_argument, 0, 'r' },
+        { "target",         required_argument, 0, 't' },
+        { "max-disparity",  required_argument, 0, 'm' },
+        0 // end of parameter list
+    };
+
+    // parse command line options
+    while (true) {
+        int index = -1;
+
+        int result = getopt_long(argc, (char **) argv, "h::r::t:m::", long_options, &index);
+
+        // end of parameter list
+        if (result == -1) {
+            break;
+        }
+
+        switch (result) {
+            case 'h':
+                usage();
+                return 0;
+
+            case 'r':
+                radius = atoi(optarg);
+                if (radius <= 0) {
+                    cerr << argv[0] << ": Invalid radius " << optarg << endl;
+                    return 1;
+                }
+                break;
+
+            case 'm':
+                max_disparity = atoi(optarg);
+                if (max_disparity <= 0) {
+                    cerr << argv[0] << ": Invalid maximal disparoty " << optarg << endl;
+                    return 1;
+                }
+                break;
+
+            case 't':
+                target = optarg;
+                break;
+
+            case '?': // missing option
+                return 1;
+
+            default: // unknown
+                cerr << "unknown parameter: " << optarg << endl;
+                break;
+        }
     }
 
-    // load images
-    img_left  = imread(argv[1], CV_LOAD_IMAGE_GRAYSCALE);
-    img_right = imread(argv[2], CV_LOAD_IMAGE_GRAYSCALE);
+    // parse positional arguments
+    if (parsePositionalImage(img_left,  "left",  argc, argv) != 0) { return 1; }
+    if (parsePositionalImage(img_right, "right", argc, argv) != 0) { return 1; }
 
-    if (img_left.empty()) {
-        cerr << "Error cannot read " << argv[1] << endl;
 
-        return 1;
-    }
+    cout << "Parameters: " << endl;
+    cout << "    radius:        " << radius << endl;
+    cout << "    max-disparity: " << max_disparity << endl;
+    cout << "    target:        " << target << endl;
 
-    if (img_right.empty()) {
-        cerr << "Error cannot read " << argv[2] << endl;
-
-        return 1;
-    }
-
-    blockMatch(img_left, img_right, disparity, 16, 16);
+    blockMatch(img_left, img_right, disparity, radius, max_disparity);
     // cout << "disparity " << endl << disparity << endl;
 
     // normalize the result to [ 0, 255 ]

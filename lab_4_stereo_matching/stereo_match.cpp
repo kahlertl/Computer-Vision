@@ -177,8 +177,34 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
     }
 
     cout << endl;
+}
 
 
+/**
+ * Normalizes the disparoty map to an grayscale image [0, 255]
+ */
+void normDisp(Mat& disparity, Mat& normalized)
+{
+    double minval;
+    double maxval;
+
+    // initialize matrix
+    normalized = Mat::zeros(disparity.size(), CV_8UC1);
+
+    // search minimum and maximum of the disparoty map 
+    minMaxLoc(disparity, &minval, &maxval);
+
+    // cout << "min: " << minval << ", maxval: " << maxval << endl;
+
+    // compute normalization scaling factor to get all values into
+    // range [0, 255]
+    float norm = 255.0 / (maxval - minval);
+
+    for (int row = 0; row < disparity.rows; row++) {
+        for (int col = 0; col < disparity.cols; col++) {
+            normalized.at<uchar>(row, col) =  norm * (disparity.at<int>(row, col) - minval);
+        }
+    }
 }
 
 
@@ -211,33 +237,11 @@ int main(int argc, char const *argv[])
     }
 
     blockMatch(img_left, img_right, disparity, 16, 16);
-    cout << "disparity " << endl << disparity << endl;
+    // cout << "disparity " << endl << disparity << endl;
 
     // normalize the result to [ 0, 255 ]
-    Mat normalized = Mat::zeros(disparity.size(), CV_8UC1);
-
-    double minval;
-    double maxval;
-
-    minMaxLoc(disparity, &minval, &maxval);
-
-    cout << "min: " << minval << ", maxval: " << maxval << endl;
-
-    float norm = 255.0 / (maxval - minval);
-
-    for (int row = 0; row < disparity.rows; row++) {
-        for (int col = 0; col < disparity.cols; col++) {
-            normalized.at<uchar>(row, col) =  norm * (disparity.at<int>(row, col) - minval);
-        }
-    }
-
-    // normalize(disparity, normalized, 0, 255, NORM_MINMAX, 1, Mat());
-    // cout << "normalized " << normalized << endl;
-
-
-    // Mat gray;
-    // normalized.convertTo(gray, CV_8UC1);
-    // cout << "gray " << gray << endl;
+    Mat normalized;
+    normDisp(disparity, normalized);
 
     imshow("Disparity", normalized);
     waitKey(0);

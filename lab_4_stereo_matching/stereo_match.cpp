@@ -70,8 +70,8 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
         int ssd = 0;
 
         // walk through the patch
-        for (int prow = -radius; prow < radius; prow++) {
-            for (int pcol = -radius; pcol < radius; pcol++) {
+        for (int prow = -radius; prow <= radius; prow++) {
+            for (int pcol = -radius; pcol <= radius; pcol++) {
 
                 // patch.at<uchar>(prow + radius, pcol + radius)  = left.at<uchar>(center.y + prow, center.x + pcol);
                 // search.at<uchar>(prow + radius, pcol + radius) = right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
@@ -279,7 +279,7 @@ int main(int argc, char const *argv[])
 
             case 'r':
                 radius = atoi(optarg);
-                if (radius <= 0) {
+                if (radius < 0) {
                     cerr << argv[0] << ": Invalid radius " << optarg << endl;
                     return 1;
                 }

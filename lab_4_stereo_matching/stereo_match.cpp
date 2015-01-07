@@ -17,11 +17,11 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
     int start = -max_disparity;
     int end   =  max_disparity;
     
-    if (center.y + start < 0) {
-        start = -(center.y - radius);
+    if (center.x + start < 0) {
+        start = -(center.x - radius);
     }
-    if (center.y + end > right.cols) {
-        end = right.cols - center.y;
+    if (center.x + end > right.cols) {
+        end = right.cols - center.x;
     }
 
         // cout << "center.y = " << center.y << endl;

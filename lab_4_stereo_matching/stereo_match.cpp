@@ -248,8 +248,8 @@ int main(int argc, char const *argv[])
     Mat img_right;
     Mat disparity;
 
-    int radius = 8;
-    int max_disparity = 16;
+    int radius = 3;
+    int max_disparity = 32;
     string target = "out.png";
 
 

@@ -100,7 +100,7 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
 
         if (ssd < min_ssd) {
             min_ssd = ssd;
-            *disparity = -col_offset;
+            *disparity = abs(col_offset);
         }
 
     }

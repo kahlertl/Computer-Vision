@@ -13,10 +13,13 @@ static void usage()
     cout << "Usage: ./stereo_match [options] left right" << endl;
     cout << "  options:" << endl;
     cout << "    -h, --help            Show this help message" << endl;
-    cout << "    -r, --radius          Filter radius. Default: 8" << endl;
+    cout << "    -r, --radius          Block radius for stereo matching. Default: 3" << endl;
     cout << "    -m, --max-disparity   Shrinks the range that will be used" << endl;
     cout << "                          for block matching. Default: 16" << endl;
     cout << "    -t, --target          Name of output file. Default: out.png" << endl;
+    cout << "    -f, --filter          Radius of the median filter applied to " << endl;
+    cout << "                          the disparity map. If 0, this feature is " << endl;
+    cout << "                          disabled. Default: 2" << endl;
 }
 
 
@@ -250,6 +253,7 @@ int main(int argc, char const *argv[])
 
     int radius = 3;
     int max_disparity = 32;
+    int median_radius = 2;
     string target = "out.png";
 
 
@@ -258,6 +262,7 @@ int main(int argc, char const *argv[])
         { "radius",         required_argument, 0, 'r' },
         { "target",         required_argument, 0, 't' },
         { "max-disparity",  required_argument, 0, 'm' },
+        { "filter",         required_argument, 0, 'f' },
         0 // end of parameter list
     };
 
@@ -265,7 +270,7 @@ int main(int argc, char const *argv[])
     while (true) {
         int index = -1;
 
-        int result = getopt_long(argc, (char **) argv, "hr:t:m:", long_options, &index);
+        int result = getopt_long(argc, (char **) argv, "hr:t:m:f:", long_options, &index);
 
         // end of parameter list
         if (result == -1) {
@@ -297,6 +302,14 @@ int main(int argc, char const *argv[])
                 target = optarg;
                 break;
 
+            case 'f':
+                median_radius = atoi(optarg);
+                if (median_radius < 0) {
+                    cerr << argv[0] << ": Invalid median radius " << optarg << endl;
+                    return 1;
+                }
+                break;
+
             case '?': // missing option
                 return 1;
 
@@ -314,20 +327,31 @@ int main(int argc, char const *argv[])
     cout << "Parameters: " << endl;
     cout << "    radius:        " << radius << endl;
     cout << "    max-disparity: " << max_disparity << endl;
+    cout << "    median radius: " << median_radius << endl;
     cout << "    target:        " << target << endl;
 
     blockMatch(img_left, img_right, disparity, radius, max_disparity);
     // cout << "disparity " << endl << disparity << endl;
 
-    // normalize the result to [ 0, 255 ]
     Mat normalized;
+    Mat filtered;
+
+    // normalize the result to [ 0, 255 ]
     normDisp(disparity, normalized);
 
-    // imshow("Disparity", normalized);
+    // you can disable median filtering    
+    if (median_radius) {
+        // apply median filter
+        medianBlur(normalized, filtered, 2 * median_radius + 1);
+    } else {
+        filtered = normalized;
+    }
+
+    // imshow("Disparity", filtered);
     // waitKey(0);
 
     try {
-        imwrite(target, normalized);
+        imwrite(target, filtered);
     } catch (runtime_error& ex) {
         cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
 

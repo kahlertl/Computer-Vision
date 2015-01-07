@@ -12,10 +12,10 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
 {
     // we do not want to cast rapidly from int to float, because the SSD is an
     // integer
-    int best_ssd = -INT_MAX;
+    int min_ssd = INT_MAX;
 
-    int start = - max_disparity;
-    int end   = max_disparity;
+    int start = -max_disparity;
+    int end   =  max_disparity;
     
     if (center.y + start < 0) {
         start = -(center.y - radius);
@@ -29,40 +29,40 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
         // cout << "center.y - start = " << (center.y - start) << endl;
         // cout << "end = " << end << endl;
 
-    // Mat patch  = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
-    // Mat search = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
+    Mat patch  = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
+    Mat search = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
 
-    for (int col_offset = start; col_offset < end; col_offset += 2) {
+    for (int col_offset = start; col_offset < end; col_offset += 1) {
         int ssd = 0;
 
         // walk through the patch
         for (int prow = -radius; prow < radius; prow++) {
             for (int pcol = -radius; pcol < radius; pcol++) {
 
-                // patch.at<uchar>(prow + radius, pcol + radius)  = left.at<uchar>(center.y + prow, center.x + pcol);
-                // search.at<uchar>(prow + radius, pcol + radius) = right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
+                patch.at<uchar>(prow + radius, pcol + radius)  = left.at<uchar>(center.y + prow, center.x + pcol);
+                search.at<uchar>(prow + radius, pcol + radius) = right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
 
                 // grayscale images => uchar
                 // patch - image
                 int diff =    left.at<uchar>(center.y + prow, center.x + pcol)
                            - right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
 
-                ssd  -= diff * diff;
+                ssd  += diff * diff;
             }
         }
 
 
-        // if (start < -50) {
-            // imshow("patch", patch);
-            // imshow("search", search);
-            // waitKey(0);
+        // if (center.y > 200 && center.x > 120) {
+        //     imshow("patch", patch);
+        //     imshow("search", search);
+        //     waitKey(0);
 
-            // cout << col_offset << ": " << ssd << endl;
+        //     cout << col_offset << ": " << ssd << endl;
         // }
 
 
-        if (ssd > best_ssd) {
-            best_ssd = ssd;
+        if (ssd < min_ssd) {
+            min_ssd = ssd;
             *disparity = -col_offset;
         }
 
@@ -89,7 +89,7 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
 
     // cout << "disparity = " << *disparity << endl;
 
-    *best_match = (float) best_ssd;
+    // *best_match = (float) best_ssd;
 }
 
 
@@ -112,7 +112,7 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
             // float best_match = 0;
             float match = 0;
 
-            // matchSSD(radius, left, right, Point2i(lcol, lrow), max_disparity, &match, &shift);
+            matchSSD(radius, left, right, Point2i(lcol, lrow), max_disparity, &match, &shift);
 
             // Mat patch (left,
             //            Range(lrow - radius, lrow + radius),
@@ -210,20 +210,36 @@ int main(int argc, char const *argv[])
         return 1;
     }
 
-    blockMatch(img_left, img_right, disparity, 32, 16);
-    cout << "disparity " << disparity << endl;
+    blockMatch(img_left, img_right, disparity, 16, 16);
+    cout << "disparity " << endl << disparity << endl;
 
     // normalize the result to [ 0, 255 ]
-    Mat normalized;
-    normalize(disparity, normalized, 0, 255, NORM_MINMAX, 1, Mat());
-    cout << "normalized " << normalized << endl;
+    Mat normalized = Mat::zeros(disparity.size(), CV_8UC1);
+
+    double minval;
+    double maxval;
+
+    minMaxLoc(disparity, &minval, &maxval);
+
+    cout << "min: " << minval << ", maxval: " << maxval << endl;
+
+    float norm = 255.0 / (maxval - minval);
+
+    for (int row = 0; row < disparity.rows; row++) {
+        for (int col = 0; col < disparity.cols; col++) {
+            normalized.at<uchar>(row, col) =  norm * (disparity.at<int>(row, col) - minval);
+        }
+    }
+
+    // normalize(disparity, normalized, 0, 255, NORM_MINMAX, 1, Mat());
+    // cout << "normalized " << normalized << endl;
 
 
-    Mat gray;
-    normalized.convertTo(gray, CV_8UC1);
-    cout << "gray " << gray << endl;
+    // Mat gray;
+    // normalized.convertTo(gray, CV_8UC1);
+    // cout << "gray " << gray << endl;
 
-    imshow("Disparity", gray);
+    imshow("Disparity", normalized);
     waitKey(0);
 
     return 0;

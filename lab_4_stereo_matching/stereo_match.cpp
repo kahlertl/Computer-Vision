@@ -20,24 +20,24 @@ static void usage()
 }
 
 
-static int parsePositionalImage(Mat& image, const string& name, int argc, char const *argv[])
+static bool parsePositionalImage(Mat& image, const string& name, int argc, char const *argv[])
 {
     if (optind >= argc) {
         cerr << argv[0] << ": required argument: '" << name << "'" << endl;
         usage();
 
-        return 1;
+        return false;
     } else {
         image = imread(argv[optind++], CV_LOAD_IMAGE_GRAYSCALE);
 
         if (image.empty()) {
             cerr << "Error: Cannot read '" << argv[optind] << "'" << endl;
 
-            return 1;
+            return false;
         }
     }
 
-    return 0;
+    return true;
 }
 
 
@@ -265,7 +265,7 @@ int main(int argc, char const *argv[])
     while (true) {
         int index = -1;
 
-        int result = getopt_long(argc, (char **) argv, "h::r::t:m::", long_options, &index);
+        int result = getopt_long(argc, (char **) argv, "hr:t:m:", long_options, &index);
 
         // end of parameter list
         if (result == -1) {
@@ -307,8 +307,8 @@ int main(int argc, char const *argv[])
     }
 
     // parse positional arguments
-    if (parsePositionalImage(img_left,  "left",  argc, argv) != 0) { return 1; }
-    if (parsePositionalImage(img_right, "right", argc, argv) != 0) { return 1; }
+    if (!parsePositionalImage(img_left,  "left",  argc, argv)) { return 1; }
+    if (!parsePositionalImage(img_right, "right", argc, argv)) { return 1; }
 
 
     cout << "Parameters: " << endl;

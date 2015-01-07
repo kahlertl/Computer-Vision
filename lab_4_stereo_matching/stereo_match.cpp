@@ -24,13 +24,13 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
         end = right.cols - center.x;
     }
 
-        // cout << "center.y = " << center.y << endl;
-        // cout << "start    = " << start << endl;
-        // cout << "center.y - start = " << (center.y - start) << endl;
-        // cout << "end = " << end << endl;
+    // cout << "center.y = " << center.y << endl;
+    // cout << "start    = " << start << endl;
+    // cout << "center.y - start = " << (center.y - start) << endl;
+    // cout << "end = " << end << endl;
 
-    Mat patch  = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
-    Mat search = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
+    // Mat patch  = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
+    // Mat search = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
 
     for (int col_offset = start; col_offset < end; col_offset += 1) {
         int ssd = 0;
@@ -39,8 +39,8 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
         for (int prow = -radius; prow < radius; prow++) {
             for (int pcol = -radius; pcol < radius; pcol++) {
 
-                patch.at<uchar>(prow + radius, pcol + radius)  = left.at<uchar>(center.y + prow, center.x + pcol);
-                search.at<uchar>(prow + radius, pcol + radius) = right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
+                // patch.at<uchar>(prow + radius, pcol + radius)  = left.at<uchar>(center.y + prow, center.x + pcol);
+                // search.at<uchar>(prow + radius, pcol + radius) = right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
 
                 // grayscale images => uchar
                 // patch - image

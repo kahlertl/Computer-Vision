@@ -44,7 +44,7 @@ static bool parsePositionalImage(Mat& image, const string& name, int argc, char 
 }
 
 
-static float matchSSD(const int radius, const Mat& left, const Mat& right, const Point2i center,
+static float matchSSD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
                       const int max_disparity, float* best_match, int* disparity)
 {
     // we do not want to cast rapidly from int to float, because the SSD is an
@@ -57,8 +57,8 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
     if (center.x + start < 0) {
         start = -(center.x - radius);
     }
-    if (center.x + end > right.cols) {
-        end = right.cols - center.x;
+    if (center.x + end > next.cols) {
+        end = next.cols - center.x;
     }
 
     // cout << "center.y = " << center.y << endl;
@@ -76,13 +76,13 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
         for (int prow = -radius; prow <= radius; prow++) {
             for (int pcol = -radius; pcol <= radius; pcol++) {
 
-                // patch.at<uchar>(prow + radius, pcol + radius)  = left.at<uchar>(center.y + prow, center.x + pcol);
-                // search.at<uchar>(prow + radius, pcol + radius) = right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
+                // patch.at<uchar>(prow + radius, pcol + radius)  = prev.at<uchar>(center.y + prow, center.x + pcol);
+                // search.at<uchar>(prow + radius, pcol + radius) = next.at<uchar>(center.y + prow, center.x + pcol + col_offset);
 
                 // grayscale images => uchar
                 // patch - image
-                int diff =    left.at<uchar>(center.y + prow, center.x + pcol)
-                           - right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
+                int diff =    prev.at<uchar>(center.y + prow, center.x + pcol)
+                           - next.at<uchar>(center.y + prow, center.x + pcol + col_offset);
 
                 ssd  += diff * diff;
             }
@@ -128,7 +128,6 @@ static float matchSSD(const int radius, const Mat& left, const Mat& right, const
 
     // *best_match = (float) best_ssd;
 }
-
 
 static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
                        const int radius, const int max_disparity)
@@ -218,17 +217,18 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
 
 
 /**
- * Normalizes the disparoty map to an grayscale image [0, 255]
+ * Normalizes the disparity map to an grayscale image [0, 255].
+ * Does not works inplace.
  */
-void normDisp(Mat& disparity, Mat& normalized)
+static void normDisp(Mat& disparity, Mat& normalized)
 {
     double minval;
     double maxval;
 
-    // initialize matrix
+    // initialize matrix if necessary
     normalized = Mat::zeros(disparity.size(), CV_8UC1);
 
-    // search minimum and maximum of the disparoty map 
+    // search minimum and maximum of the disparity map 
     minMaxLoc(disparity, &minval, &maxval);
 
     // cout << "min: " << minval << ", maxval: " << maxval << endl;
@@ -245,11 +245,33 @@ void normDisp(Mat& disparity, Mat& normalized)
 }
 
 
+static void _calcMedianDisp(const Mat& prev, const Mat& next, Mat& disp,
+                            const int radius, const int max_disparity, const int median_radius)
+{
+    Mat matched;
+    Mat gray;
+
+    blockMatch(prev, next, matched, radius, max_disparity);
+
+    // normalize the result to [ 0, 255 ]
+    normDisp(matched, gray);
+
+    // you can disable median filtering    
+    if (median_radius) {
+        // apply median filter
+        medianBlur(gray, disp, 2 * median_radius + 1);
+    } else {
+        disp = gray;
+    }
+}
+
+
 int main(int argc, char const *argv[])
 {
-    Mat img_left;
-    Mat img_right;
-    Mat disparity;
+    Mat img_prev;
+    Mat img_next;
+    Mat disparity;     // from prev to next
+    Mat disparity_n2p; // from next to prev (for left right consistency -- LRC)
 
     int radius = 3;
     int max_disparity = 32;
@@ -293,7 +315,7 @@ int main(int argc, char const *argv[])
             case 'd':
                 max_disparity = atoi(optarg);
                 if (max_disparity <= 0) {
-                    cerr << argv[0] << ": Invalid maximal disparoty " << optarg << endl;
+                    cerr << argv[0] << ": Invalid maximal disparity " << optarg << endl;
                     return 1;
                 }
                 break;
@@ -320,8 +342,8 @@ int main(int argc, char const *argv[])
     }
 
     // parse positional arguments
-    if (!parsePositionalImage(img_left,  "left",  argc, argv)) { return 1; }
-    if (!parsePositionalImage(img_right, "right", argc, argv)) { return 1; }
+    if (!parsePositionalImage(img_prev, "frame1", argc, argv)) { return 1; }
+    if (!parsePositionalImage(img_next, "frame2", argc, argv)) { return 1; }
 
 
     cout << "Parameters: " << endl;
@@ -330,28 +352,14 @@ int main(int argc, char const *argv[])
     cout << "    median radius: " << median_radius << endl;
     cout << "    target:        " << target << endl;
 
-    blockMatch(img_left, img_right, disparity, radius, max_disparity);
-    // cout << "disparity " << endl << disparity << endl;
-
-    Mat normalized;
-    Mat filtered;
-
-    // normalize the result to [ 0, 255 ]
-    normDisp(disparity, normalized);
-
-    // you can disable median filtering    
-    if (median_radius) {
-        // apply median filter
-        medianBlur(normalized, filtered, 2 * median_radius + 1);
-    } else {
-        filtered = normalized;
-    }
+    
+    _calcMedianDisp(img_prev, img_next, disparity, radius, max_disparity, median_radius);
 
     // imshow("Disparity", filtered);
     // waitKey(0);
 
     try {
-        imwrite(target, filtered);
+        imwrite(target, disparity);
     } catch (runtime_error& ex) {
         cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
 

@@ -323,8 +323,17 @@ int main(int argc, char const *argv[])
     Mat normalized;
     normDisp(disparity, normalized);
 
-    imshow("Disparity", normalized);
-    waitKey(0);
+    // imshow("Disparity", normalized);
+    // waitKey(0);
+
+    try {
+        imwrite(target, normalized);
+    } catch (runtime_error& ex) {
+        cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
+
+        return 1;
+    }
+
 
     return 0;
 }

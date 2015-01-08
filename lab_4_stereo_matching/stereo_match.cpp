@@ -31,7 +31,7 @@ static void usage()
 }
 
 
-static bool parsePositionalImage(Mat& image, const string& name, int argc, char const *argv[])
+static bool parsePositionalImage(Mat& image, const int channels, const string& name, int argc, char const *argv[])
 {
     if (optind >= argc) {
         cerr << argv[0] << ": required argument: '" << name << "'" << endl;
@@ -39,7 +39,7 @@ static bool parsePositionalImage(Mat& image, const string& name, int argc, char 
 
         return false;
     } else {
-        image = imread(argv[optind++], CV_LOAD_IMAGE_GRAYSCALE);
+        image = imread(argv[optind++], channels);
 
         if (image.empty()) {
             cerr << "Error: Cannot read '" << argv[optind] << "'" << endl;
@@ -366,6 +366,7 @@ int main(int argc, char const *argv[])
 {
     Mat img_prev;
     Mat img_next;
+    Mat image;         // img_prev, but loaded with colors
     Mat disparity;     // from prev to next
     Mat disparity_n2p; // from next to prev (for left right consistency -- LRC)
 
@@ -458,9 +459,11 @@ int main(int argc, char const *argv[])
     }
 
     // parse positional arguments
-    if (!parsePositionalImage(img_prev, "frame1", argc, argv)) { return 1; }
-    if (!parsePositionalImage(img_next, "frame2", argc, argv)) { return 1; }
+    if (!parsePositionalImage(image,    CV_LOAD_IMAGE_COLOR,     "frame1", argc, argv)) { return 1; }
+    if (!parsePositionalImage(img_next, CV_LOAD_IMAGE_GRAYSCALE, "frame2", argc, argv)) { return 1; }
 
+    // convert previous image into grayscale
+    cvtColor(image, img_prev, CV_BGR2GRAY);
 
     cout << "Parameters: " << endl;
     cout << "    radius:        " << radius << endl;
@@ -489,9 +492,46 @@ int main(int argc, char const *argv[])
     } else {
         gray = gray;
     }
+    
+    double minval;
+    double maxval;
+    minMaxLoc(disparity, &minval, &maxval);
 
-    // imshow("disparity", gray);
-    // waitKey(0);
+    Mat map = Mat(disparity.size(), CV_8UC3);
+
+    // normalize(gray, disparity, 0, maxval, NORM_MINMAX);
+
+    for (int row = 0; row < gray.rows; row++) {
+        for (int col = 0; col < gray.cols; col++) {
+            uchar disp = gray.at<uchar>(row, col);
+            int row_3d = row;
+            int col_3d = col;
+
+            if (disp > 0) {
+                row_3d = row * maxval / gray.at<uchar>(row, col);
+                col_3d = col * maxval / gray.at<uchar>(row, col);
+
+                if (row_3d >= image.rows) {
+                    row_3d = row;
+                }
+                if (col_3d >= image.cols) {
+                    col_3d = col;
+                }
+
+                // cout << row << " * " << maxval << " / " << (int) gray.at<uchar>(row, col) << " = " << row_3d << endl;
+                // cout << col << " * " << maxval << " / " << (int) gray.at<uchar>(row, col) << " = " << col_3d << endl;
+            }
+
+            map.at<Vec3b>(row, col) = image.at<Vec3b>(row_3d, col_3d);
+
+
+        }
+    }
+
+    imshow("map", map);
+    imshow("gray", gray);
+    imshow("disparity", disparity);
+    waitKey(0);
 
     try {
         imwrite(target, gray);

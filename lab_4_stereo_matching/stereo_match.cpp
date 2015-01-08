@@ -7,6 +7,9 @@
 using namespace std;
 using namespace cv;
 
+// function pointer to a function that can be used for block matching
+typedef float(*match_t)(const int, const Mat&, const Mat&, const Point2i, const int, float*, int*);
+
 
 static void usage()
 {
@@ -20,6 +23,11 @@ static void usage()
     cout << "    -m, --median          Radius of the median filter applied to " << endl;
     cout << "                          the disparity map. If 0, this feature is " << endl;
     cout << "                          disabled. Default: 2" << endl;
+    cout << "    -c, --correlation     Method for computing correlation. There are:" << endl;
+    cout << "                              ssd  sum of square differences" << endl;
+    cout << "                              sad  sum of absolute differences" << endl;
+    cout << "                              ccr  cross correlation" << endl;
+    cout << "                          Default: sad" << endl;
 }
 
 
@@ -129,8 +137,50 @@ static float matchSSD(const int radius, const Mat& prev, const Mat& next, const 
     // *best_match = (float) best_ssd;
 }
 
+
+static float matchSAD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+                      const int max_disparity, float* best_match, int* disparity)
+{
+    // we do not want to cast rapidly from int to float, because the SSD is an
+    // integer
+    int min_sad = INT_MAX;
+
+    int start = -max_disparity;
+    int end   =  max_disparity;
+    
+    if (center.x + start < 0) {
+        start = -(center.x - radius);
+    }
+    if (center.x + end > next.cols) {
+        end = next.cols - center.x;
+    }
+
+    for (int col_offset = start; col_offset < end; col_offset += 1) {
+        int sad = 0;
+
+        // walk through the patch
+        for (int prow = -radius; prow <= radius; prow++) {
+            for (int pcol = -radius; pcol <= radius; pcol++) {
+                // grayscale images => uchar
+                // patch - image
+                int diff =   prev.at<uchar>(center.y + prow, center.x + pcol)
+                           - next.at<uchar>(center.y + prow, center.x + pcol + col_offset);
+
+                sad  += abs(diff);
+            }
+        }
+
+        if (sad < min_sad) {
+            min_sad = sad;
+            *disparity = abs(col_offset);
+        }
+
+    }
+}
+
 static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
-                       const int radius, const int max_disparity)
+                       const int radius, const int max_disparity,
+                       match_t match_fn)
 {
     disparity = Mat::zeros(left.size(), DataType<int>::type);
 
@@ -146,9 +196,11 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
 
             int shift = 0;
             // float best_match = 0;
-            float match = 0;
+            float result = 0;
 
-            matchSSD(radius, left, right, Point2i(lcol, lrow), max_disparity, &match, &shift);
+            match_fn(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
+            // matchSSD(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
+            // matchSAD(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
 
             // Mat patch (left,
             //            Range(lrow - radius, lrow + radius),
@@ -203,8 +255,8 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
             // cout << "min = " << min_val << " " << min_loc << endl;
             // waitKey(0);
 
-            // if (match > best_match) {
-                // best_match = match;
+            // if (result > best_match) {
+                // best_match = result;
                 disparity.at<int>(lrow, lcol) = shift;                
             // }
 
@@ -246,12 +298,13 @@ static void normDisp(Mat& disparity, Mat& normalized)
 
 
 static void _calcMedianDisp(const Mat& prev, const Mat& next, Mat& disp,
-                            const int radius, const int max_disparity, const int median_radius)
+                            const int radius, const int max_disparity, const int median_radius,
+                            match_t match_fn)
 {
     Mat matched;
     Mat gray;
 
-    blockMatch(prev, next, matched, radius, max_disparity);
+    blockMatch(prev, next, matched, radius, max_disparity, match_fn);
 
     // normalize the result to [ 0, 255 ]
     normDisp(matched, gray);
@@ -276,6 +329,8 @@ int main(int argc, char const *argv[])
     int radius = 3;
     int max_disparity = 32;
     int median_radius = 2;
+    match_t match_fn = &matchSAD;
+    string match_name = "sad";
     string target = "out.png";
 
 
@@ -285,6 +340,7 @@ int main(int argc, char const *argv[])
         { "target",         required_argument, 0, 't' },
         { "max-disparity",  required_argument, 0, 'd' },
         { "median",         required_argument, 0, 'm' },
+        { "correlation",    required_argument, 0, 'c' },
         0 // end of parameter list
     };
 
@@ -292,7 +348,7 @@ int main(int argc, char const *argv[])
     while (true) {
         int index = -1;
 
-        int result = getopt_long(argc, (char **) argv, "hr:t:d:m:", long_options, &index);
+        int result = getopt_long(argc, (char **) argv, "hr:t:d:m:c:", long_options, &index);
 
         // end of parameter list
         if (result == -1) {
@@ -332,6 +388,23 @@ int main(int argc, char const *argv[])
                 }
                 break;
 
+            case 'c':
+                match_name = string(optarg);
+
+                if (match_name == "ssd") {
+                    match_fn = &matchSSD;
+                } else if (match_name == "sad") {
+                    match_fn = &matchSAD;
+                } else if (match_name == "ccr") {
+                    cerr << argv[0] << ": cross correlation not implemented yet" << endl;
+                    return 1;
+                } else {
+                    cerr << argv[0] << ": Invalid correlation method '" << optarg << "'" << endl;
+                    return 1;
+                }
+
+                break;
+
             case '?': // missing option
                 return 1;
 
@@ -348,14 +421,36 @@ int main(int argc, char const *argv[])
 
     cout << "Parameters: " << endl;
     cout << "    radius:        " << radius << endl;
+    cout << "    match fn:      " << match_name << endl;
     cout << "    max-disparity: " << max_disparity << endl;
     cout << "    median radius: " << median_radius << endl;
     cout << "    target:        " << target << endl;
 
     
-    _calcMedianDisp(img_prev, img_next, disparity, radius, max_disparity, median_radius);
+    _calcMedianDisp(img_prev, img_next, disparity,     radius, max_disparity, median_radius, match_fn);
+    _calcMedianDisp(img_next, img_prev, disparity_n2p, radius, max_disparity, median_radius, match_fn);
 
-    // imshow("Disparity", filtered);
+    // Mat diff = Mat(disparity.size(), disparity.type());
+
+    // for (int row = 0; row < disparity.rows; row++) {
+    //     for (int col = 0; col < disparity.cols; col++) {
+
+    //         // diff.at<uchar>(row,col) = abs(disparity.at<uchar>(row,col) - disparity_n2p.at<uchar>(row,col));
+    //         uint diff = abs(disparity.at<uchar>(row,col) - disparity_n2p.at<uchar>(row,col));
+
+    //         if (diff > 32) {
+    //             // cout << row << ", " << col << ": " << diff << endl;
+    //             disparity.at<uchar>(row,col) = 0;
+    //         } else if (diff < 32) {
+
+    //         }
+    //     }
+    // }
+
+    // imshow("disparity",     disparity);
+    // imshow("disparity_n2p", disparity_n2p);
+
+    // imshow("Diff", diff);
     // waitKey(0);
 
     try {

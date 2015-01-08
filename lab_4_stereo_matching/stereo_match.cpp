@@ -269,6 +269,49 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
 
 
 /**
+ * Left right consistency compensation
+ */
+static void lrcCompensation(Mat& disparity, const Mat& disparity_revert, const uint max_diff)
+{
+    Mat occlusion = Mat::zeros(disparity.size(), disparity.type());
+
+    // detect occluded regions
+    for (int row = 0; row < disparity.rows; row++) {
+        for (int col = 0; col < disparity.cols; col++) {
+            // diff.at<uchar>(row,col) = abs(disparity.at<uchar>(row,col) - disparity_revert.at<uchar>(row,col));
+            uint diff = abs(disparity.at<uchar>(row,col) - disparity_revert.at<uchar>(row,col));
+
+            if (diff > max_diff) {
+                occlusion.at<uchar>(row,col) = 1;
+                // disparity.at<uchar>(row,col) = 0; // optional
+            }
+        }
+    }
+
+    // search the nearest neighbor that is not occluded
+    for (int row = 0; row < disparity.rows; row++) {
+        for (int col = 0; col < disparity.cols; col++) {
+            if (occlusion.at<uchar>(row, col)) {
+                // search for the first pixel in the column that is not occluded
+                for (int i = 0; i < disparity.cols / 2; i++) {
+                    // search left
+                    if (col - i >= 0 && disparity.at<uchar>(row, col - i) == 0) {
+                        disparity.at<uchar>(row, col) = disparity.at<uchar>(row, col - i);
+                        break;
+                    }
+                    // search right
+                    if (col + i < disparity.cols && disparity.at<uchar>(row,col + i) == 0) {
+                        disparity.at<uchar>(row, col) = disparity.at<uchar>(row, col + i);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+/**
  * Normalizes the disparity map to an grayscale image [0, 255].
  * Does not works inplace.
  */
@@ -427,34 +470,31 @@ int main(int argc, char const *argv[])
     cout << "    target:        " << target << endl;
 
     
-    _calcMedianDisp(img_prev, img_next, disparity,     radius, max_disparity, median_radius, match_fn);
-    _calcMedianDisp(img_next, img_prev, disparity_n2p, radius, max_disparity, median_radius, match_fn);
 
-    // Mat diff = Mat(disparity.size(), disparity.type());
+    blockMatch(img_prev, img_next, disparity,     radius, max_disparity, match_fn);
+    blockMatch(img_prev, img_next, disparity_n2p, radius, max_disparity, match_fn);
 
-    // for (int row = 0; row < disparity.rows; row++) {
-    //     for (int col = 0; col < disparity.cols; col++) {
+    // Left right consistency
+    lrcCompensation(disparity, disparity_n2p, max_disparity);
 
-    //         // diff.at<uchar>(row,col) = abs(disparity.at<uchar>(row,col) - disparity_n2p.at<uchar>(row,col));
-    //         uint diff = abs(disparity.at<uchar>(row,col) - disparity_n2p.at<uchar>(row,col));
+    Mat gray;
 
-    //         if (diff > 32) {
-    //             // cout << row << ", " << col << ": " << diff << endl;
-    //             disparity.at<uchar>(row,col) = 0;
-    //         } else if (diff < 32) {
+    // normalize the result to [ 0, 255 ]
+    normDisp(disparity, gray);
 
-    //         }
-    //     }
-    // }
+    // you can disable median filtering    
+    if (median_radius) {
+        // apply median filter
+        medianBlur(gray, gray, 2 * median_radius + 1);
+    } else {
+        gray = gray;
+    }
 
-    // imshow("disparity",     disparity);
-    // imshow("disparity_n2p", disparity_n2p);
-
-    // imshow("Diff", diff);
+    // imshow("disparity", gray);
     // waitKey(0);
 
     try {
-        imwrite(target, disparity);
+        imwrite(target, gray);
     } catch (runtime_error& ex) {
         cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
 

@@ -155,8 +155,6 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
     int min_sad = INT_MAX;
 
     // just looking into one direction
-    // standard: patch from left image could be
-    // found left from its position in right image
     int start = -max_disparity;
     int end   = 0;
     
@@ -200,7 +198,7 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
                        const int radius, const int max_disparity,
                        match_t match_fn, bool inverse = false)
 {
-    disparity = Mat::zeros(left.size(), DataType<int>::type);
+    disparity = Mat::zeros(left.size(), CV_8UC1);
 
     // walk through the left image
     for (int lrow = radius; lrow < left.rows - radius; lrow++) {
@@ -275,7 +273,7 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
 
             // if (result > best_match) {
                 // best_match = result;
-                disparity.at<int>(lrow, lcol) = shift;                
+                disparity.at<uchar>(lrow, lcol) = shift;                
             // }
 
 
@@ -328,6 +326,83 @@ static void lrcCompensation(Mat& disparity, const Mat& disparity_revert, const u
     }
 }
 
+static void create3DPointCloud(Mat& disparity, Mat& image, Mat& point_cloud) {
+    // double minval;
+    // double maxval;
+
+    // TODO: commandline parameter for this two
+    // cm
+    double pixel_size = 0.0014;
+    double focal_lenght = 0.784;
+    double baseline = 8;
+
+    // for caculation Z-Coordinate of each pixel this factor
+    // is the same.
+    // depth = baseline * focal_length / disparity * pixel size
+    //         --------   ------------               ----------  
+    double factor = baseline * focal_lenght / pixel_size;
+
+    // minMaxLoc(disparity, &minval, &maxval);
+
+    // // normalize(gray, disparity, 0, maxval, NORM_MINMAX);
+
+    // fill map
+    for (int row = 0; row < disparity.rows; row++) {
+        for (int col = 0; col < disparity.cols; col++) {
+            uchar disp = disparity.at<uchar>(row, col);
+
+            if (disp > 0) {
+                int z = factor / disp;
+                cout << z << endl;
+
+                double alpha = 45 * M_PI / 180;
+                Mat rotation = (Mat_<double>(3, 3) <<
+                                1,          0,           0,
+                                0, cos(alpha), -sin(alpha),
+                                0, sin(alpha),  cos(alpha));
+
+
+                Mat point3D = (Mat_<double>(1,3) <<
+                                row + disparity.rows / 2,
+                                col + disparity.rows / 2,
+                                z );
+
+                Mat result = point3D * rotation;
+                Mat back = (Mat_<double>(1,3) <<
+                                disparity.rows / 2,
+                                disparity.rows / 2,
+                                0 );
+                result = result - back;
+                cout << result << endl;
+
+                point_cloud.at<Vec3b>(row, col) = image.at<Vec3b>(result.at<double>(0)/result.at<double>(2), result.at<double>(1)/result.at<double>(2));
+            }
+
+    //         int row_3d = row;
+    //         int col_3d = col;
+
+    //         if (disp > 0) {
+    //             row_3d = row * maxval / gray.at<uchar>(row, col);
+    //             col_3d = col * maxval / gray.at<uchar>(row, col);
+
+    //             if (row_3d >= image.rows) {
+    //                 row_3d = row;
+    //             }
+    //             if (col_3d >= image.cols) {
+    //                 col_3d = col;
+    //             }
+
+    //             // cout << row << " * " << maxval << " / " << (int) gray.at<uchar>(row, col) << " = " << row_3d << endl;
+    //             // cout << col << " * " << maxval << " / " << (int) gray.at<uchar>(row, col) << " = " << col_3d << endl;
+    //         }
+
+    //         map.at<Vec3b>(row, col) = image.at<Vec3b>(row_3d, col_3d);
+
+
+        }
+    }
+}
+
 
 /**
  * Normalizes the disparity map to an grayscale image [0, 255].
@@ -352,7 +427,7 @@ static void normDisp(Mat& disparity, Mat& normalized)
 
     for (int row = 0; row < disparity.rows; row++) {
         for (int col = 0; col < disparity.cols; col++) {
-            normalized.at<uchar>(row, col) =  norm * (disparity.at<int>(row, col) - minval);
+            normalized.at<uchar>(row, col) =  norm * (disparity.at<uchar>(row, col) - minval);
         }
     }
 }
@@ -496,56 +571,21 @@ int main(int argc, char const *argv[])
     // Left right consistency
     lrcCompensation(disparity, disparity_n2p, max_disparity);
 
+    // you can disable median filtering    
+    if (median_radius) {
+        // apply median filter
+        medianBlur(disparity, disparity, 2 * median_radius + 1);
+    } 
+    
+    Mat map = Mat::zeros(disparity.size(), CV_8UC3);
+    // create3DPointCloud(disparity, image, map);
+
     Mat gray;
     // normalize the result to [ 0, 255 ]
     normDisp(disparity, gray);
 
-    // you can disable median filtering    
-    if (median_radius) {
-        // apply median filter
-        medianBlur(gray, gray, 2 * median_radius + 1);
-    } else {
-        gray = gray;
-    }
-    
-    double minval;
-    double maxval;
-    minMaxLoc(disparity, &minval, &maxval);
-
-    Mat map = Mat(disparity.size(), CV_8UC3);
-
-    // normalize(gray, disparity, 0, maxval, NORM_MINMAX);
-
-    for (int row = 0; row < gray.rows; row++) {
-        for (int col = 0; col < gray.cols; col++) {
-            uchar disp = gray.at<uchar>(row, col);
-            int row_3d = row;
-            int col_3d = col;
-
-            if (disp > 0) {
-                row_3d = row * maxval / gray.at<uchar>(row, col);
-                col_3d = col * maxval / gray.at<uchar>(row, col);
-
-                if (row_3d >= image.rows) {
-                    row_3d = row;
-                }
-                if (col_3d >= image.cols) {
-                    col_3d = col;
-                }
-
-                // cout << row << " * " << maxval << " / " << (int) gray.at<uchar>(row, col) << " = " << row_3d << endl;
-                // cout << col << " * " << maxval << " / " << (int) gray.at<uchar>(row, col) << " = " << col_3d << endl;
-            }
-
-            map.at<Vec3b>(row, col) = image.at<Vec3b>(row_3d, col_3d);
-
-
-        }
-    }
-
     imshow("map", map);
     imshow("gray", gray);
-    // imshow("disparity", disparity);
     waitKey(0);
 
     try {

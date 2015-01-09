@@ -23,6 +23,8 @@ static void usage()
     cout << "    -m, --median          Radius of the median filter applied to " << endl;
     cout << "                          the disparity map. If 0, this feature is " << endl;
     cout << "                          disabled. Default: 2" << endl;
+    cout << "    -g, --ground-truth    Optimal disparity image. This activates the" << endl;
+    cout << "                          search for the optimal block size for each pixel." << endl;
     cout << "    -c, --correlation     Method for computing correlation. There are:" << endl;
     cout << "                              ssd  sum of square differences" << endl;
     cout << "                              sad  sum of absolute differences" << endl;
@@ -462,6 +464,7 @@ int main(int argc, char const *argv[])
     Mat image;         // img_prev, but loaded with colors
     Mat disparity;     // from prev to next
     Mat disparity_n2p; // from next to prev (for left right consistency -- LRC)
+    Mat ground_truth;  // optimal disparity map for the image pairs
 
     int radius = 3;
     int max_disparity = 32;
@@ -477,6 +480,7 @@ int main(int argc, char const *argv[])
         { "target",         required_argument, 0, 't' },
         { "max-disparity",  required_argument, 0, 'd' },
         { "median",         required_argument, 0, 'm' },
+        { "ground-truth",   required_argument, 0, 'g' },
         { "correlation",    required_argument, 0, 'c' },
         0 // end of parameter list
     };
@@ -485,7 +489,7 @@ int main(int argc, char const *argv[])
     while (true) {
         int index = -1;
 
-        int result = getopt_long(argc, (char **) argv, "hr:t:d:m:c:", long_options, &index);
+        int result = getopt_long(argc, (char **) argv, "hr:t:d:m:g:c:", long_options, &index);
 
         // end of parameter list
         if (result == -1) {
@@ -523,6 +527,10 @@ int main(int argc, char const *argv[])
                     cerr << argv[0] << ": Invalid median radius " << optarg << endl;
                     return 1;
                 }
+                break;
+
+            case 'g':
+                ground_truth = imread(optarg, CV_LOAD_IMAGE_GRAYSCALE);
                 break;
 
             case 'c':
@@ -583,6 +591,13 @@ int main(int argc, char const *argv[])
     Mat gray;
     // normalize the result to [ 0, 255 ]
     normDisp(disparity, gray);
+
+    // find optimal block sizes for each pixel if
+    // the ground truth for disparity is given
+    if (!ground_truth.empty()) {
+        cout << "ground truth given" << endl;
+        imshow("gt", ground_truth);
+    }
 
     imshow("map", map);
     imshow("gray", gray);

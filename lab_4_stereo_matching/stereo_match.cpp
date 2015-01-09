@@ -8,7 +8,7 @@ using namespace std;
 using namespace cv;
 
 // function pointer to a function that can be used for block matching
-typedef float(*match_t)(const int, const Mat&, const Mat&, const Point2i, const int, float*, int*);
+typedef float(*match_t)(const int, const Mat&, const Mat&, const Point2i, const int, float*, int*, bool);
 
 
 static void usage()
@@ -53,14 +53,23 @@ static bool parsePositionalImage(Mat& image, const int channels, const string& n
 
 
 static float matchSSD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
-                      const int max_disparity, float* best_match, int* disparity)
+                      const int max_disparity, float* best_match, int* disparity, bool inverse)
 {
     // we do not want to cast rapidly from int to float, because the SSD is an
     // integer
     int min_ssd = INT_MAX;
 
+    // just looking into one direction
+    // standard: patch from left image could be
+    // found left from its position in right image
     int start = -max_disparity;
-    int end   =  max_disparity;
+    int end   = 0;
+    
+    // inverse match (from right image to left one)    
+    if (inverse) {
+        start = 0;
+        end = max_disparity;
+    }
     
     if (center.x + start < 0) {
         start = -(center.x - radius);
@@ -139,14 +148,23 @@ static float matchSSD(const int radius, const Mat& prev, const Mat& next, const 
 
 
 static float matchSAD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
-                      const int max_disparity, float* best_match, int* disparity)
+                      const int max_disparity, float* best_match, int* disparity, bool inverse)
 {
     // we do not want to cast rapidly from int to float, because the SSD is an
     // integer
     int min_sad = INT_MAX;
 
+    // just looking into one direction
+    // standard: patch from left image could be
+    // found left from its position in right image
     int start = -max_disparity;
-    int end   =  max_disparity;
+    int end   = 0;
+    
+    // inverse match (from right image to left one)    
+    if (max_disparity < 0) {
+        start = 0;
+        end = max_disparity;
+    }
     
     if (center.x + start < 0) {
         start = -(center.x - radius);
@@ -180,7 +198,7 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
 
 static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
                        const int radius, const int max_disparity,
-                       match_t match_fn)
+                       match_t match_fn, bool inverse = false)
 {
     disparity = Mat::zeros(left.size(), DataType<int>::type);
 
@@ -198,7 +216,7 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
             // float best_match = 0;
             float result = 0;
 
-            match_fn(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
+            match_fn(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift, inverse);
             // matchSSD(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
             // matchSAD(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
 
@@ -472,16 +490,13 @@ int main(int argc, char const *argv[])
     cout << "    median radius: " << median_radius << endl;
     cout << "    target:        " << target << endl;
 
-    
-
-    blockMatch(img_prev, img_next, disparity,     radius, max_disparity, match_fn);
-    blockMatch(img_prev, img_next, disparity_n2p, radius, max_disparity, match_fn);
+    blockMatch(img_prev, img_next, disparity,     radius,  max_disparity, match_fn);
+    blockMatch(img_next, img_prev, disparity_n2p, radius,  max_disparity, match_fn, true);
 
     // Left right consistency
     lrcCompensation(disparity, disparity_n2p, max_disparity);
 
     Mat gray;
-
     // normalize the result to [ 0, 255 ]
     normDisp(disparity, gray);
 
@@ -530,7 +545,7 @@ int main(int argc, char const *argv[])
 
     imshow("map", map);
     imshow("gray", gray);
-    imshow("disparity", disparity);
+    // imshow("disparity", disparity);
     waitKey(0);
 
     try {

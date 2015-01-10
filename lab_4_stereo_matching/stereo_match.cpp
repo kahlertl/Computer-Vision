@@ -16,10 +16,10 @@ static void usage()
     cout << "Usage: ./stereo_match [options] left right" << endl;
     cout << "  options:" << endl;
     cout << "    -h, --help            Show this help message" << endl;
-    cout << "    -r, --radius          Block radius for stereo matching. Default: 3" << endl;
+    cout << "    -r, --radius          Block radius for stereo matching. Default: 2" << endl;
     cout << "    -d, --max-disparity   Shrinks the range that will be used" << endl;
-    cout << "                          for block matching. Default: 16" << endl;
-    cout << "    -t, --target          Name of output file. Default: out.png" << endl;
+    cout << "                          for block matching. Default: 20" << endl;
+    cout << "    -t, --target          Name of output file. Default: disparity.png" << endl;
     cout << "    -m, --median          Radius of the median filter applied to " << endl;
     cout << "                          the disparity map. If 0, this feature is " << endl;
     cout << "                          disabled. Default: 2" << endl;
@@ -403,12 +403,12 @@ int main(int argc, char const *argv[])
     Mat disparity;     // from prev to next
     Mat ground_truth;  // optimal disparity map for the image pairs
 
-    int radius = 3;
-    int max_disparity = 32;
+    int radius = 2;
+    int max_disparity = 20;
     int median_radius = 2;
     match_t match_fn = &matchSAD;
     string match_name = "sad";
-    string target = "out.png";
+    string target = "disparity.png";
 
 
     const struct option long_options[] = {

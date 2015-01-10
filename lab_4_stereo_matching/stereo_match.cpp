@@ -324,83 +324,6 @@ static void lrcCompensation(Mat& disparity, const Mat& disparity_revert, const u
     }
 }
 
-static void create3DPointCloud(Mat& disparity, Mat& image, Mat& point_cloud) {
-    // double minval;
-    // double maxval;
-
-    // TODO: commandline parameter for this two
-    // cm
-    double pixel_size = 0.0014;
-    double focal_lenght = 0.784;
-    double baseline = 8;
-
-    // for caculation Z-Coordinate of each pixel this factor
-    // is the same.
-    // depth = baseline * focal_length / disparity * pixel size
-    //         --------   ------------               ----------  
-    double factor = baseline * focal_lenght / pixel_size;
-
-    // minMaxLoc(disparity, &minval, &maxval);
-
-    // // normalize(gray, disparity, 0, maxval, NORM_MINMAX);
-
-    // fill map
-    for (int row = 0; row < disparity.rows; row++) {
-        for (int col = 0; col < disparity.cols; col++) {
-            uchar disp = disparity.at<uchar>(row, col);
-
-            if (disp > 0) {
-                int z = factor / disp;
-                cout << z << endl;
-
-                double alpha = 45 * M_PI / 180;
-                Mat rotation = (Mat_<double>(3, 3) <<
-                                1,          0,           0,
-                                0, cos(alpha), -sin(alpha),
-                                0, sin(alpha),  cos(alpha));
-
-
-                Mat point3D = (Mat_<double>(1,3) <<
-                                row + disparity.rows / 2,
-                                col + disparity.rows / 2,
-                                z );
-
-                Mat result = point3D * rotation;
-                Mat back = (Mat_<double>(1,3) <<
-                                disparity.rows / 2,
-                                disparity.rows / 2,
-                                0 );
-                result = result - back;
-                cout << result << endl;
-
-                point_cloud.at<Vec3b>(row, col) = image.at<Vec3b>(result.at<double>(0)/result.at<double>(2), result.at<double>(1)/result.at<double>(2));
-            }
-
-    //         int row_3d = row;
-    //         int col_3d = col;
-
-    //         if (disp > 0) {
-    //             row_3d = row * maxval / gray.at<uchar>(row, col);
-    //             col_3d = col * maxval / gray.at<uchar>(row, col);
-
-    //             if (row_3d >= image.rows) {
-    //                 row_3d = row;
-    //             }
-    //             if (col_3d >= image.cols) {
-    //                 col_3d = col;
-    //             }
-
-    //             // cout << row << " * " << maxval << " / " << (int) gray.at<uchar>(row, col) << " = " << row_3d << endl;
-    //             // cout << col << " * " << maxval << " / " << (int) gray.at<uchar>(row, col) << " = " << col_3d << endl;
-    //         }
-
-    //         map.at<Vec3b>(row, col) = image.at<Vec3b>(row_3d, col_3d);
-
-
-        }
-    }
-}
-
 
 /**
  * Normalizes the disparity map to an grayscale image [0, 255].
@@ -637,12 +560,6 @@ int main(int argc, char const *argv[])
         stereoMatch(img_prev, img_next, disparity, radius, max_disparity, median_radius, match_fn);
     }
      
-    // display 3D point cloud of disparity map (not normalized)
-    // TODO: implement 
-    // Mat map = Mat::zeros(disparity.size(), CV_8UC3);
-    // create3DPointCloud(disparity, image, map);
-    // imshow("map", map);
-
     Mat gray;
     // normalize the result to [ 0, 255 ]
     normDisp(disparity, gray);

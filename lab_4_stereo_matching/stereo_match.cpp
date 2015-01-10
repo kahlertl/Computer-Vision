@@ -161,7 +161,7 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
     int end   = 0;
     
     // inverse match (from right image to left one)    
-    if (max_disparity < 0) {
+    if (inverse) {
         start = 0;
         end = max_disparity;
     }
@@ -196,6 +196,97 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
     }
 }
 
+
+static inline float _areaMean(const Mat& image, const int radius, const int offset_row, const int offset_col)
+{
+    const int area_size = 2 * radius + 1;
+    float mean          = 0;
+
+    for (int row = -radius; row <= radius; row++) {
+        for (int col = -radius; col <= radius; col++) {
+            mean += image.at<uchar>(row + offset_row, col + offset_col);
+        }
+    }
+
+    return mean / (area_size * area_size);
+}
+
+static float matchCCR(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+                      const int max_disparity, float* best_match, int* disparity, bool inverse)
+{
+    // we do not want to cast rapidly from int to float, because the SSD is an
+    // integer
+    int min_ccr = INT_MAX;
+
+    // just looking into one direction
+    int start = -max_disparity;
+    int end   = 0;
+    
+    // inverse match (from right image to left one)    
+    if (inverse) {
+        start = 0;
+        end = max_disparity;
+    }
+    
+    if (center.x + start < 0) {
+        start = -(center.x - radius);
+    }
+    if (center.x + end > next.cols) {
+        end = next.cols - center.x;
+    }
+
+    // Pre calculate some parts
+    Mat pattern_norm = Mat::zeros(2 * radius + 1, 2 * radius + 1, DataType<float>::type);
+    float pattern_mean = _areaMean(prev, radius, center.y, center.x);
+    float sqsum_pattern_norm = 0;
+
+    // cout << "Pre compution started ..." << endl;
+
+    // FIXME causes seg fault
+    for (int row = -radius; row <= radius; row++) {
+        for (int col = -radius; col <= radius; col++) {
+            float norm = prev.at<uchar>(row + center.y, col + center.x) - pattern_mean;
+
+            pattern_norm.at<float>(row + radius, col + radius) = norm;
+            sqsum_pattern_norm                                += norm * norm;
+        }
+    }
+
+    // cout << "Pre compution finished" << endl;
+    // cout << pattern_norm << endl;
+
+    for (int col_offset = start; col_offset < end; col_offset += 1) {
+        float numerator         = 0;
+        float sqsum_window_norm = 0;
+        const int row = center.y;
+        const int col = center.x + col_offset;
+        float window_mean       = _areaMean(next, radius, row, col);
+
+        // cout << "window_mean = " << window_mean << endl;
+
+        // Calculate numerator: (next - next norm) * (patch - patch norm)
+        for (int prow = -radius; prow <= radius; prow++) {
+            for (int pcol = -radius; pcol <= radius; pcol++) {
+                float window_norm = next.at<uchar>(row + prow, col + pcol) - window_mean;
+                
+                numerator         += pattern_norm.at<float>(prow, pcol) * window_norm;
+                sqsum_window_norm += window_norm * window_norm;
+            }
+        }
+
+        // cout << "numerator = " << numerator;
+        // cout << (sqsum_pattern_norm * sqsum_window_norm) << endl;
+
+        float ccr = numerator / sqrt(sqsum_pattern_norm * sqsum_window_norm);
+
+        if (ccr < min_ccr) {
+            min_ccr = ccr;
+            *disparity = abs(col_offset);
+        }
+    }
+}
+
+
 static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
                        const int radius, const int max_disparity,
                        match_t match_fn, bool inverse = false)
@@ -209,80 +300,16 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
         cout << "." << flush;
 
         for (int lcol = radius; lcol < left.cols - radius; lcol++) {
-
             // cout << lrow << ", " << lcol << endl;
 
             int shift = 0;
-            // float best_match = 0;
             float result = 0;
 
             match_fn(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift, inverse);
-            // matchSSD(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
-            // matchSAD(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
 
-            // Mat patch (left,
-            //            Range(lrow - radius, lrow + radius),
-            //            Range(lcol - radius, lcol + radius));
-
-            // Mat search (right,
-            //             Range(lrow - radius, lrow + radius),
-            //             Range(0, right.cols));
-
-            // Mat result;
-
-            // matchTemplate(search, patch, result, CV_TM_SQDIFF);
-
-
-
-            // double min_val;
-            // double max_val;
-            // Point min_loc;
-
-            // minMaxLoc(result, &min_val, &max_val, &min_loc);
-
-
-            // // Mat canvas;
-            // // search.copyTo(canvas);
-
-            // // cv::rectangle(
-            // //     canvas, 
-            // //     min_loc, 
-            // //     Point(min_loc.x + patch.cols, min_loc.y + patch.rows), 
-            // //     CV_RGB(0,255,0),
-            // //     2
-            // // );
-            // // imshow("search", canvas);
-            // // imshow("patch", patch);
-            // // waitKey(0);
-
-
-            // min_loc.y += lrow;
-
-            // shift = min_loc.x - lcol;
-
-            // cout << "min_loc " << min_loc << endl;
-            // cout << "cnt_loc [" << lcol << ", " << lrow << "]" << endl;
-
-            // for (int row = min_loc; row < patch.rows; row++) {
-            //     for (int col = min_loc; col < patch.cols; col++) {
-            //         canvas.at<uchar>(row, col) = right.at<uchar>(row, col)
-            //     }
-            // }
-
-            // cout << result << endl;
-            // cout << "min = " << min_val << " " << min_loc << endl;
-            // waitKey(0);
-
-            // if (result > best_match) {
-                // best_match = result;
-                disparity.at<uchar>(lrow, lcol) = shift;                
-            // }
-
-
+            disparity.at<uchar>(lrow, lcol) = shift;                
         }
     }
-
-    cout << endl;
 }
 
 
@@ -559,8 +586,7 @@ int main(int argc, char const *argv[])
                 } else if (match_name == "sad") {
                     match_fn = &matchSAD;
                 } else if (match_name == "ccr") {
-                    cerr << argv[0] << ": cross correlation not implemented yet" << endl;
-                    return 1;
+                    match_fn = &matchCCR;
                 } else {
                     cerr << argv[0] << ": Invalid correlation method '" << optarg << "'" << endl;
                     return 1;

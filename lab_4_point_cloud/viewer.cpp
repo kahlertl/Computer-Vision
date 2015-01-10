@@ -12,7 +12,7 @@ Mat canvas;
 int max_disp = 0;
 
 int tracker_alpha = 180;
-int tracker_beta  = 180;
+int tracker_beta  = 90;
 int tracker_zoom  = 100;
 int tracker_dist  = 200;
 
@@ -82,22 +82,28 @@ void render(int, void*)
 
     for (int row = 0; row < image.rows; row++) {
         for (int col = 0; col < image.cols; col++) {
-            double depth = maxdisp / disparity.at<uchar>(row, col) + 20;
 
-            int x2d = col / depth * 20 * zoom;
-            int y2d = row / depth * 20 * zoom;
+            if (disparity.at<uchar>(row, col) == 0) {
+                continue;
+            }
+
+            double depth = maxdisp / disparity.at<uchar>(row, col) + 10;
 
 
-            // Mat point = (Mat_<double>(4,1) << col - image.cols / 2,
-            //                                   row - image.rows / 2,
-            //                                   5,
-            //                                   1); // homogenous component
-            // // rotating
-            // point = rot_x * rot_y * point;
+            Mat point = (Mat_<double>(4,1) << col - image.cols / 2,
+                                              row - image.rows / 2,
+                                              depth,
+                                              1); // homogenous component
+            // rotating
+            point = rot_x * rot_y * point;
 
-            // // zooming
-            // point.at<double>(0,0) *= zoom;
-            // point.at<double>(1,0) *= zoom;
+            // revert centering
+            point.at<double>(0,0) += image.cols / 2;
+            point.at<double>(1,0) += image.rows / 2;
+            // zooming
+            point.at<double>(0,0) *= zoom;
+            point.at<double>(1,0) *= zoom;
+            point.at<double>(2,0) *= zoom;
 
             // // normalize z-component with camera distance
             // // point.at<double>(0,0) /= point.at<double>(2,0) + dist;
@@ -105,13 +111,15 @@ void render(int, void*)
             // // point.at<double>(2,0) /= point.at<double>(2,0);
 
             // // normalization with homogenous component
-            // point.at<double>(0,0) /= point.at<double>(3,0);
-            // point.at<double>(1,0) /= point.at<double>(3,0);
-            // point.at<double>(2,0) /= point.at<double>(3,0);
+            point.at<double>(0,0) /= point.at<double>(3,0);
+            point.at<double>(1,0) /= point.at<double>(3,0);
+            point.at<double>(2,0) /= point.at<double>(3,0);
 
-            // // revert centering
-            // point.at<double>(0,0) += image.cols / 2;
-            // point.at<double>(1,0) += image.rows / 2;
+
+
+
+            const int x2d = point.at<double>(0,0) / depth;
+            const int y2d = point.at<double>(1,0) / depth;
 
             // const int x2d = point.at<double>(0,0); // cols
             // const int y2d = point.at<double>(1,0); // rows

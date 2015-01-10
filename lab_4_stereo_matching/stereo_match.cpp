@@ -434,6 +434,25 @@ static void normDisp(Mat& disparity, Mat& normalized)
     }
 }
 
+static void stereoMatch(const Mat& img_prev, const Mat& img_next, Mat& disparity,
+                                const int radius, const int max_disparity, const int median_radius,
+                                match_t match_fn) 
+{
+    Mat disparity_n2p; // from next to prev (for left right consistency -- LRC)
+
+    blockMatch(img_prev, img_next, disparity,     radius, max_disparity, match_fn);
+    blockMatch(img_next, img_prev, disparity_n2p, radius, max_disparity, match_fn, true);
+
+    // Left right consistency
+    lrcCompensation(disparity, disparity_n2p, max_disparity);
+
+    // you can disable median filtering    
+    if (median_radius) {
+        // apply median filter
+        medianBlur(disparity, disparity, 2 * median_radius + 1);
+    } 
+}
+
 
 static void _calcMedianDisp(const Mat& prev, const Mat& next, Mat& disp,
                             const int radius, const int max_disparity, const int median_radius,
@@ -463,7 +482,6 @@ int main(int argc, char const *argv[])
     Mat img_next;
     Mat image;         // img_prev, but loaded with colors
     Mat disparity;     // from prev to next
-    Mat disparity_n2p; // from next to prev (for left right consistency -- LRC)
     Mat ground_truth;  // optimal disparity map for the image pairs
 
     int radius = 3;
@@ -573,33 +591,67 @@ int main(int argc, char const *argv[])
     cout << "    median radius: " << median_radius << endl;
     cout << "    target:        " << target << endl;
 
-    blockMatch(img_prev, img_next, disparity,     radius,  max_disparity, match_fn);
-    blockMatch(img_next, img_prev, disparity_n2p, radius,  max_disparity, match_fn, true);
+    // find optimal block sizes for each pixel if
+    // the ground truth for disparity is given
+    if (!ground_truth.empty()) {
+        cout << "ground truth given" << endl;
+        
+        normalize(ground_truth, ground_truth, 0, 255, NORM_MINMAX);
 
-    // Left right consistency
-    lrcCompensation(disparity, disparity_n2p, max_disparity);
+        // imshow("GT", ground_truth);
+        // waitKey(0);
 
-    // you can disable median filtering    
-    if (median_radius) {
-        // apply median filter
-        medianBlur(disparity, disparity, 2 * median_radius + 1);
-    } 
-    
-    Mat map = Mat::zeros(disparity.size(), CV_8UC3);
+        uint steps = 3;
+
+        // try different block sizes 
+        vector<Mat> disparities(steps);
+        for (int i = 0; i < steps; i++) {
+            cout << "block size:" << (2 * (i + 1) + 1) << endl;
+            stereoMatch(img_prev, img_next, disparities[i], i + 1, max_disparity, median_radius, match_fn);
+            normalize(disparities[i], disparities[i], 0, 255, NORM_MINMAX);
+        }
+
+        // compare different disparities to ground truth and save block size
+        Mat opt_block_size = Mat(img_prev.size(), img_prev.type());
+            disparity      = Mat(img_prev.size(), img_prev.type());
+
+        for (int row = 0; row < img_prev.rows; row++) {
+            for (int col = 0; col < img_prev.cols; col++) {
+                int smallest_diff = INT_MAX;
+                for (int i = 0; i < steps; i++) {
+                    int diff = ground_truth.at<uchar>(row, col) - disparities[i].at<uchar>(row, col);
+                    if (abs(diff) < smallest_diff) {
+                        smallest_diff = diff;
+                        opt_block_size.at<uchar>(row, col) = i;
+                        disparity.at<uchar>(row, col) = disparities[i].at<uchar>(row, col);
+                    }
+                }
+            }
+        }
+
+        // cout << opt_block_size << endl;
+        // cout << disparities[0] << endl;
+
+        // normalize(opt_block_size, opt_block_size, 0, 255, NORM_MINMAX);
+        // imshow("Optimal block size for each pixel", opt_block_size);
+
+
+        // disparity = disparities[0];
+
+    } else {
+        stereoMatch(img_prev, img_next, disparity, radius, max_disparity, median_radius, match_fn);
+    }
+     
+    // display 3D point cloud of disparity map (not normalized)
+    // TODO: implement 
+    // Mat map = Mat::zeros(disparity.size(), CV_8UC3);
     // create3DPointCloud(disparity, image, map);
+    // imshow("map", map);
 
     Mat gray;
     // normalize the result to [ 0, 255 ]
     normDisp(disparity, gray);
 
-    // find optimal block sizes for each pixel if
-    // the ground truth for disparity is given
-    if (!ground_truth.empty()) {
-        cout << "ground truth given" << endl;
-        imshow("gt", ground_truth);
-    }
-
-    imshow("map", map);
     imshow("gray", gray);
     waitKey(0);
 

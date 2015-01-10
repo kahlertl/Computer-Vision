@@ -227,16 +227,16 @@ static float matchCCR(const int radius, const Mat& prev, const Mat& next, const 
     matchTemplate(search_area, patch, result, CV_TM_CCORR_NORMED);
 
     // imshow("prev", prev);
-    imshow("patch", patch);
+    // imshow("patch", patch);
     // imshow("search area", search_area);
     // imshow("result", result);
 
-    float min_ccr = INFINITY;
+    float max_ccr = -INFINITY;
 
 
     for (int col = 0; col < result.cols; col++) {
-        if (result.at<float>(0, col) < min_ccr) {
-            min_ccr = result.at<float>(0, col);
+        if (result.at<float>(0, col) > max_ccr) {
+            max_ccr = result.at<float>(0, col);
             *disparity = col;
         }
     }
@@ -245,14 +245,14 @@ static float matchCCR(const int radius, const Mat& prev, const Mat& next, const 
         *disparity = result.cols - *disparity;
     }
 
-    for (int row = 0; row < patch.rows; row++) {
-        for (int col = 0; col < patch.cols; col++) {
-            search_area.at<uchar>(row, col - *disparity) = patch.at<uchar>(row, col);
-        }
-    }
+    // for (int row = 0; row < patch.rows; row++) {
+    //     for (int col = 0; col < patch.cols; col++) {
+    //         search_area.at<uchar>(row, col - *disparity) = patch.at<uchar>(row, col);
+    //     }
+    // }
     
     // imshow("search area", search_area);
-    // waitKey(0);
+    waitKey(0);
 }
 
 

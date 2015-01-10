@@ -9,8 +9,6 @@ Mat image;
 Mat disparity;
 Mat canvas;
 
-int max_disp = 0;
-
 int tracker_alpha = 210;
 int tracker_beta  = 120;
 int tracker_zoom  = 85;
@@ -72,25 +70,25 @@ void render(int, void*)
     // reset canvas
     canvas.setTo(0);
 
-
+    // store the depth of each projected 2D point to keep track
+    // about occluded regions
     Mat depth_matrix = Mat(canvas.size(), DataType<double>::type);
-
     depth_matrix.setTo(INFINITY);
 
     for (int row = 0; row < image.rows; row++) {
         for (int col = 0; col < image.cols; col++) {
 
+            // we have no information what disparity 0 means
             if (disparity.at<uchar>(row, col) == 0) {
                 continue;
             }
 
+            // compute depth (z-component) of the point
             double depth = maxdisp / disparity.at<uchar>(row, col) + dist;
-            // double depth = 1;
 
             Mat point = (Mat_<double>(3,1) << col - image.cols / 2,
                                               row - image.rows / 2,
                                               depth);
-
 
             // zooming
             point.at<double>(0,0) *= zoom;
@@ -106,21 +104,19 @@ void render(int, void*)
             point.at<double>(0,0) += image.cols / 1.5; // 2;
             point.at<double>(1,0) += image.rows / 1.5; // 2;
 
-            
-            const int x2d = point.at<double>(0,0) / depth * dist;
-            const int y2d = point.at<double>(1,0) / depth * dist;
+            const int x2d = point.at<double>(0,0) / depth * dist; // cols
+            const int y2d = point.at<double>(1,0) / depth * dist; // rows
 
-            // const int x2d = point.at<double>(0,0); // cols
-            // const int y2d = point.at<double>(1,0); // rows
-
+            // do not render points outside the canvas
             if (x2d > 0 && x2d < canvas.cols && y2d > 0 && y2d < canvas.rows) {
+                // only render 2D point if there is not already a point with a lower depth
+                // which means this point is closer to the camera
                 if (depth < depth_matrix.at<double>(y2d, x2d)) {
                     depth_matrix.at<double>(y2d, x2d) = depth;
                     canvas.at<Vec3b>(y2d, x2d)        = image.at<Vec3b>(row, col);
                 }
             }
         }
-        // cout << endl;
     }
 
     imshow("cloud", canvas);

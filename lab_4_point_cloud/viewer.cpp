@@ -12,7 +12,7 @@ Mat canvas;
 int max_disp = 0;
 
 int tracker_alpha = 180;
-int tracker_beta  = 90;
+int tracker_beta  = 135;
 int tracker_zoom  = 100;
 int tracker_dist  = 200;
 
@@ -33,10 +33,9 @@ inline Mat RotX(const float angle)
 {
     float alpha = radian(angle);
 
-    return (Mat_<double>(4,4) << 1,          0,           0, 0,
-                                 0, cos(alpha), -sin(alpha), 0,
-                                 0, sin(alpha),  cos(alpha), 0,
-                                 0,          0,           0, 1);
+    return (Mat_<double>(3,3) << 1,          0,           0,
+                                 0, cos(alpha), -sin(alpha),
+                                 0, sin(alpha),  cos(alpha));
 }
 
 
@@ -47,10 +46,9 @@ inline Mat RotY(const float angle)
 {
     float alpha = radian(angle);
 
-    return (Mat_<double>(4,4) <<  cos(alpha), 0, sin(alpha), 0,
-                                           0, 1,          0, 0,
-                                 -sin(alpha), 0, cos(alpha), 0,
-                                           0, 0,          0, 1);
+    return (Mat_<double>(3,3) <<  cos(alpha), 0, sin(alpha),
+                                           0, 1,          0,
+                                 -sin(alpha), 0, cos(alpha));
 }
 
 
@@ -87,13 +85,14 @@ void render(int, void*)
                 continue;
             }
 
-            double depth = maxdisp / disparity.at<uchar>(row, col) + 10;
+            double depth = maxdisp / disparity.at<uchar>(row, col);
 
-
-            Mat point = (Mat_<double>(4,1) << col - image.cols / 2,
+            Mat point = (Mat_<double>(3,1) << col - image.cols / 2,
                                               row - image.rows / 2,
-                                              depth,
-                                              1); // homogenous component
+                                              depth);
+
+            // cout << point.at<double>(0,0) << " " << point.at<double>(1,0) << " " << point.at<double>(2,0) << " " << point.at<double>(3,0) << endl;
+
             // rotating
             point = rot_x * rot_y * point;
 
@@ -109,13 +108,6 @@ void render(int, void*)
             // // point.at<double>(0,0) /= point.at<double>(2,0) + dist;
             // // point.at<double>(1,0) /= point.at<double>(2,0) + dist;
             // // point.at<double>(2,0) /= point.at<double>(2,0);
-
-            // // normalization with homogenous component
-            point.at<double>(0,0) /= point.at<double>(3,0);
-            point.at<double>(1,0) /= point.at<double>(3,0);
-            point.at<double>(2,0) /= point.at<double>(3,0);
-
-
 
 
             const int x2d = point.at<double>(0,0) / depth;

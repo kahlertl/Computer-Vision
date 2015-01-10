@@ -197,93 +197,62 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
 }
 
 
-static inline float _areaMean(const Mat& image, const int radius, const int offset_row, const int offset_col)
-{
-    const int area_size = 2 * radius + 1;
-    float mean          = 0;
-
-    for (int row = -radius; row <= radius; row++) {
-        for (int col = -radius; col <= radius; col++) {
-            mean += image.at<uchar>(row + offset_row, col + offset_col);
-        }
-    }
-
-    return mean / (area_size * area_size);
-}
-
 static float matchCCR(const int radius, const Mat& prev, const Mat& next, const Point2i center,
                       const int max_disparity, float* best_match, int* disparity, bool inverse)
 {
-    // we do not want to cast rapidly from int to float, because the SSD is an
-    // integer
-    int min_ccr = INT_MAX;
+    const int patch_size = 2 * radius + 1;    
+    int search_width = max_disparity + 2 * radius;
+    Point2i search_corner;
+    search_corner.y = center.y - radius;
 
-    // just looking into one direction
-    int start = -max_disparity;
-    int end   = 0;
+    if (!inverse) {
+        search_corner.x = center.x - search_width + radius;
+
+        if (search_corner.x < 0) {
+            search_width += search_corner.x;
+            search_corner.x = 0;
+        }
+    } else {
+        search_corner.x = center.x -radius;
+
+        if (search_corner.x + search_width >= next.cols) {
+            search_width = (next.cols - 1) - search_corner.x;
+        }
+    }
+
+    Mat patch       = prev(Rect(center.x - radius, center.y - radius, patch_size,   patch_size));
+    Mat search_area = next(Rect(search_corner.x,   search_corner.y,   search_width, patch_size));
+
+    Mat result;
+    matchTemplate(search_area, patch, result, CV_TM_CCORR_NORMED);
+
+    // imshow("prev", prev);
+    imshow("patch", patch);
+    // imshow("search area", search_area);
+    // imshow("result", result);
+
+    float min_ccr = INFINITY;
+
+
+    for (int col = 0; col < result.cols; col++) {
+        if (result.at<float>(0, col) < min_ccr) {
+            min_ccr = result.at<float>(0, col);
+            *disparity = col;
+        }
+    }
+
+    if (!inverse) {
+        *disparity = result.cols - *disparity;
+    }
+
+    for (int row = 0; row < patch.rows; row++) {
+        for (int col = 0; col < patch.cols; col++) {
+            search_area.at<uchar>(row, col - *disparity) = patch.at<uchar>(row, col);
+        }
+    }
     
-    // inverse match (from right image to left one)    
-    if (inverse) {
-        start = 0;
-        end = max_disparity;
-    }
-    
-    if (center.x + start < 0) {
-        start = -(center.x - radius);
-    }
-    if (center.x + end > next.cols) {
-        end = next.cols - center.x;
-    }
-
-    // Pre calculate some parts
-    Mat pattern_norm = Mat::zeros(2 * radius + 1, 2 * radius + 1, DataType<float>::type);
-    float pattern_mean = _areaMean(prev, radius, center.y, center.x);
-    float sqsum_pattern_norm = 0;
-
-    // cout << "Pre compution started ..." << endl;
-
-    // FIXME causes seg fault
-    for (int row = -radius; row <= radius; row++) {
-        for (int col = -radius; col <= radius; col++) {
-            float norm = prev.at<uchar>(row + center.y, col + center.x) - pattern_mean;
-
-            pattern_norm.at<float>(row + radius, col + radius) = norm;
-            sqsum_pattern_norm                                += norm * norm;
-        }
-    }
-
-    // cout << "Pre compution finished" << endl;
-    // cout << pattern_norm << endl;
-
-    for (int col_offset = start; col_offset < end; col_offset += 1) {
-        float numerator         = 0;
-        float sqsum_window_norm = 0;
-        const int row = center.y;
-        const int col = center.x + col_offset;
-        float window_mean       = _areaMean(next, radius, row, col);
-
-        // cout << "window_mean = " << window_mean << endl;
-
-        // Calculate numerator: (next - next norm) * (patch - patch norm)
-        for (int prow = -radius; prow <= radius; prow++) {
-            for (int pcol = -radius; pcol <= radius; pcol++) {
-                float window_norm = next.at<uchar>(row + prow, col + pcol) - window_mean;
-                
-                numerator         += pattern_norm.at<float>(prow, pcol) * window_norm;
-                sqsum_window_norm += window_norm * window_norm;
-            }
-        }
-
-        // cout << "numerator = " << numerator;
-        // cout << (sqsum_pattern_norm * sqsum_window_norm) << endl;
-
-        float ccr = numerator / sqrt(sqsum_pattern_norm * sqsum_window_norm);
-
-        if (ccr < min_ccr) {
-            min_ccr = ccr;
-            *disparity = abs(col_offset);
-        }
-    }
+    // imshow("search area", search_area);
+    // waitKey(0);
 }
 
 

@@ -16,15 +16,19 @@ static void usage()
     cout << "Usage: ./stereo_match [options] left right" << endl;
     cout << "  options:" << endl;
     cout << "    -h, --help            Show this help message" << endl;
-    cout << "    -r, --radius          Block radius for stereo matching. Default: 3" << endl;
+    cout << "    -r, --radius          Block radius for stereo matching. Default: 2" << endl;
     cout << "    -d, --max-disparity   Shrinks the range that will be used" << endl;
-    cout << "                          for block matching. Default: 16" << endl;
-    cout << "    -t, --target          Name of output file. Default: out.png" << endl;
+    cout << "                          for block matching. Default: 20" << endl;
+    cout << "    -t, --target          Name of output file. Default: disparity.png" << endl;
     cout << "    -m, --median          Radius of the median filter applied to " << endl;
     cout << "                          the disparity map. If 0, this feature is " << endl;
     cout << "                          disabled. Default: 2" << endl;
     cout << "    -g, --ground-truth    Optimal disparity image. This activates the" << endl;
     cout << "                          search for the optimal block size for each pixel." << endl;
+    cout << "                          The radius parameter will be used for the step" << endl;
+    cout << "                          range [0, step]. For each element in the interval" << endl;
+    cout << "                          there will be a match performed with radius = 2^step" << endl;
+    cout << "                             2^step" << endl;
     cout << "    -c, --correlation     Method for computing correlation. There are:" << endl;
     cout << "                              ssd  sum of square differences" << endl;
     cout << "                              sad  sum of absolute differences" << endl;
@@ -161,7 +165,7 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
     int end   = 0;
     
     // inverse match (from right image to left one)    
-    if (max_disparity < 0) {
+    if (inverse) {
         start = 0;
         end = max_disparity;
     }
@@ -196,6 +200,70 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
     }
 }
 
+
+static float matchCCR(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+                      const int max_disparity, float* best_match, int* disparity, bool inverse)
+{
+    const int patch_size = 2 * radius + 1;    
+    int search_width     = max_disparity + 2 * radius;
+    
+    // top left corner of the search area
+    Point2i search_corner;
+    search_corner.y = center.y - radius;
+
+    // should we search to the right side?
+    if (!inverse) {
+        search_corner.x = center.x - search_width + radius;
+
+        if (search_corner.x < 0) {
+            search_width += search_corner.x;
+            search_corner.x = 0;
+        }
+    } else {
+        search_corner.x = center.x -radius;
+
+        if (search_corner.x + search_width >= next.cols) {
+            search_width = (next.cols - 1) - search_corner.x;
+        }
+    }
+
+    // cut off the patch and search area from the image
+    Mat patch       = prev(Rect(center.x - radius, center.y - radius, patch_size,   patch_size));
+    Mat search_area = next(Rect(search_corner.x,   search_corner.y,   search_width, patch_size));
+
+    // perform normed cross correlation matching
+    Mat result;
+    matchTemplate(search_area, patch, result, CV_TM_CCORR_NORMED);
+
+    // search for the best match
+    float max_ccr = -INFINITY;
+
+    for (int col = 0; col < result.cols; col++) {
+        if (result.at<float>(0, col) > max_ccr) {
+            max_ccr = result.at<float>(0, col);
+            *disparity = col;
+        }
+    }
+
+    // if we have searched on the left side, we have to 
+    // 
+    //    0   1   2   3   4   5 
+    //  -------------------------
+    //  |   |   |   | x |   |   |
+    //  -------------------------
+    //                    ^
+    //                    |
+    //                  center.x
+    // 
+    // we have to cout the cols from the right to the
+    // maximum, in this example: 5 - 3 = 2
+    // 
+    if (!inverse) {
+        *disparity = result.cols - *disparity;
+    }
+}
+
+
 static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
                        const int radius, const int max_disparity,
                        match_t match_fn, bool inverse = false)
@@ -209,80 +277,16 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
         cout << "." << flush;
 
         for (int lcol = radius; lcol < left.cols - radius; lcol++) {
-
             // cout << lrow << ", " << lcol << endl;
 
             int shift = 0;
-            // float best_match = 0;
             float result = 0;
 
             match_fn(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift, inverse);
-            // matchSSD(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
-            // matchSAD(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
 
-            // Mat patch (left,
-            //            Range(lrow - radius, lrow + radius),
-            //            Range(lcol - radius, lcol + radius));
-
-            // Mat search (right,
-            //             Range(lrow - radius, lrow + radius),
-            //             Range(0, right.cols));
-
-            // Mat result;
-
-            // matchTemplate(search, patch, result, CV_TM_SQDIFF);
-
-
-
-            // double min_val;
-            // double max_val;
-            // Point min_loc;
-
-            // minMaxLoc(result, &min_val, &max_val, &min_loc);
-
-
-            // // Mat canvas;
-            // // search.copyTo(canvas);
-
-            // // cv::rectangle(
-            // //     canvas, 
-            // //     min_loc, 
-            // //     Point(min_loc.x + patch.cols, min_loc.y + patch.rows), 
-            // //     CV_RGB(0,255,0),
-            // //     2
-            // // );
-            // // imshow("search", canvas);
-            // // imshow("patch", patch);
-            // // waitKey(0);
-
-
-            // min_loc.y += lrow;
-
-            // shift = min_loc.x - lcol;
-
-            // cout << "min_loc " << min_loc << endl;
-            // cout << "cnt_loc [" << lcol << ", " << lrow << "]" << endl;
-
-            // for (int row = min_loc; row < patch.rows; row++) {
-            //     for (int col = min_loc; col < patch.cols; col++) {
-            //         canvas.at<uchar>(row, col) = right.at<uchar>(row, col)
-            //     }
-            // }
-
-            // cout << result << endl;
-            // cout << "min = " << min_val << " " << min_loc << endl;
-            // waitKey(0);
-
-            // if (result > best_match) {
-                // best_match = result;
-                disparity.at<uchar>(lrow, lcol) = shift;                
-            // }
-
-
+            disparity.at<uchar>(lrow, lcol) = shift;                
         }
     }
-
-    cout << endl;
 }
 
 
@@ -328,111 +332,6 @@ static void lrcCompensation(Mat& disparity, const Mat& disparity_revert, const u
     }
 }
 
-static void create3DPointCloud(Mat& disparity, Mat& image, Mat& point_cloud) {
-    // double minval;
-    // double maxval;
-
-    // TODO: commandline parameter for this two
-    // cm
-    double pixel_size = 0.0014;
-    double focal_lenght = 0.784;
-    double baseline = 8;
-
-    // for caculation Z-Coordinate of each pixel this factor
-    // is the same.
-    // depth = baseline * focal_length / disparity * pixel size
-    //         --------   ------------               ----------  
-    double factor = baseline * focal_lenght / pixel_size;
-
-    // minMaxLoc(disparity, &minval, &maxval);
-
-    // // normalize(gray, disparity, 0, maxval, NORM_MINMAX);
-
-    // fill map
-    for (int row = 0; row < disparity.rows; row++) {
-        for (int col = 0; col < disparity.cols; col++) {
-            uchar disp = disparity.at<uchar>(row, col);
-
-            if (disp > 0) {
-                int z = factor / disp;
-                cout << z << endl;
-
-                double alpha = 45 * M_PI / 180;
-                Mat rotation = (Mat_<double>(3, 3) <<
-                                1,          0,           0,
-                                0, cos(alpha), -sin(alpha),
-                                0, sin(alpha),  cos(alpha));
-
-
-                Mat point3D = (Mat_<double>(1,3) <<
-                                row + disparity.rows / 2,
-                                col + disparity.rows / 2,
-                                z );
-
-                Mat result = point3D * rotation;
-                Mat back = (Mat_<double>(1,3) <<
-                                disparity.rows / 2,
-                                disparity.rows / 2,
-                                0 );
-                result = result - back;
-                cout << result << endl;
-
-                point_cloud.at<Vec3b>(row, col) = image.at<Vec3b>(result.at<double>(0)/result.at<double>(2), result.at<double>(1)/result.at<double>(2));
-            }
-
-    //         int row_3d = row;
-    //         int col_3d = col;
-
-    //         if (disp > 0) {
-    //             row_3d = row * maxval / gray.at<uchar>(row, col);
-    //             col_3d = col * maxval / gray.at<uchar>(row, col);
-
-    //             if (row_3d >= image.rows) {
-    //                 row_3d = row;
-    //             }
-    //             if (col_3d >= image.cols) {
-    //                 col_3d = col;
-    //             }
-
-    //             // cout << row << " * " << maxval << " / " << (int) gray.at<uchar>(row, col) << " = " << row_3d << endl;
-    //             // cout << col << " * " << maxval << " / " << (int) gray.at<uchar>(row, col) << " = " << col_3d << endl;
-    //         }
-
-    //         map.at<Vec3b>(row, col) = image.at<Vec3b>(row_3d, col_3d);
-
-
-        }
-    }
-}
-
-
-/**
- * Normalizes the disparity map to an grayscale image [0, 255].
- * Does not works inplace.
- */
-static void normDisp(Mat& disparity, Mat& normalized)
-{
-    double minval;
-    double maxval;
-
-    // initialize matrix if necessary
-    normalized = Mat::zeros(disparity.size(), CV_8UC1);
-
-    // search minimum and maximum of the disparity map 
-    minMaxLoc(disparity, &minval, &maxval);
-
-    // cout << "min: " << minval << ", maxval: " << maxval << endl;
-
-    // compute normalization scaling factor to get all values into
-    // range [0, 255]
-    float norm = 255.0 / (maxval - minval);
-
-    for (int row = 0; row < disparity.rows; row++) {
-        for (int col = 0; col < disparity.cols; col++) {
-            normalized.at<uchar>(row, col) =  norm * (disparity.at<uchar>(row, col) - minval);
-        }
-    }
-}
 
 static void stereoMatch(const Mat& img_prev, const Mat& img_next, Mat& disparity,
                                 const int radius, const int max_disparity, const int median_radius,
@@ -454,28 +353,6 @@ static void stereoMatch(const Mat& img_prev, const Mat& img_next, Mat& disparity
 }
 
 
-static void _calcMedianDisp(const Mat& prev, const Mat& next, Mat& disp,
-                            const int radius, const int max_disparity, const int median_radius,
-                            match_t match_fn)
-{
-    Mat matched;
-    Mat gray;
-
-    blockMatch(prev, next, matched, radius, max_disparity, match_fn);
-
-    // normalize the result to [ 0, 255 ]
-    normDisp(matched, gray);
-
-    // you can disable median filtering    
-    if (median_radius) {
-        // apply median filter
-        medianBlur(gray, disp, 2 * median_radius + 1);
-    } else {
-        disp = gray;
-    }
-}
-
-
 int main(int argc, char const *argv[])
 {
     Mat img_prev;
@@ -484,12 +361,12 @@ int main(int argc, char const *argv[])
     Mat disparity;     // from prev to next
     Mat ground_truth;  // optimal disparity map for the image pairs
 
-    int radius = 3;
-    int max_disparity = 32;
+    int radius = 2;
+    int max_disparity = 20;
     int median_radius = 2;
     match_t match_fn = &matchSAD;
     string match_name = "sad";
-    string target = "out.png";
+    string target = "disparity.png";
 
 
     const struct option long_options[] = {
@@ -559,8 +436,7 @@ int main(int argc, char const *argv[])
                 } else if (match_name == "sad") {
                     match_fn = &matchSAD;
                 } else if (match_name == "ccr") {
-                    cerr << argv[0] << ": cross correlation not implemented yet" << endl;
-                    return 1;
+                    match_fn = &matchCCR;
                 } else {
                     cerr << argv[0] << ": Invalid correlation method '" << optarg << "'" << endl;
                     return 1;
@@ -601,13 +477,19 @@ int main(int argc, char const *argv[])
         // imshow("GT", ground_truth);
         // waitKey(0);
 
-        uint steps = 3;
+        uint steps = radius;
 
         // try different block sizes 
         vector<Mat> disparities(steps);
         for (int i = 0; i < steps; i++) {
-            cout << "block size:" << (2 * (i + 1) + 1) << endl;
-            stereoMatch(img_prev, img_next, disparities[i], i + 1, max_disparity, median_radius, match_fn);
+            // variable radius
+            int var_radius = pow(2, i);
+
+            cout << "block size: " << (2 * var_radius + 1) << endl;
+
+            stereoMatch(img_prev, img_next, disparities[i], var_radius, max_disparity, median_radius, match_fn);
+
+            // normalize result to [0, 255]
             normalize(disparities[i], disparities[i], 0, 255, NORM_MINMAX);
         }
 
@@ -642,21 +524,11 @@ int main(int argc, char const *argv[])
         stereoMatch(img_prev, img_next, disparity, radius, max_disparity, median_radius, match_fn);
     }
      
-    // display 3D point cloud of disparity map (not normalized)
-    // TODO: implement 
-    // Mat map = Mat::zeros(disparity.size(), CV_8UC3);
-    // create3DPointCloud(disparity, image, map);
-    // imshow("map", map);
-
-    Mat gray;
     // normalize the result to [ 0, 255 ]
-    normDisp(disparity, gray);
-
-    imshow("gray", gray);
-    waitKey(0);
+    normalize(disparity, disparity, 0, 255, NORM_MINMAX);
 
     try {
-        imwrite(target, gray);
+        imwrite(target, disparity);
     } catch (runtime_error& ex) {
         cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
 

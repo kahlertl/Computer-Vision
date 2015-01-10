@@ -161,7 +161,7 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
     int end   = 0;
     
     // inverse match (from right image to left one)    
-    if (max_disparity < 0) {
+    if (inverse) {
         start = 0;
         end = max_disparity;
     }
@@ -196,6 +196,66 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
     }
 }
 
+
+static float matchCCR(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+                      const int max_disparity, float* best_match, int* disparity, bool inverse)
+{
+    const int patch_size = 2 * radius + 1;    
+    int search_width = max_disparity + 2 * radius;
+    Point2i search_corner;
+    search_corner.y = center.y - radius;
+
+    if (!inverse) {
+        search_corner.x = center.x - search_width + radius;
+
+        if (search_corner.x < 0) {
+            search_width += search_corner.x;
+            search_corner.x = 0;
+        }
+    } else {
+        search_corner.x = center.x -radius;
+
+        if (search_corner.x + search_width >= next.cols) {
+            search_width = (next.cols - 1) - search_corner.x;
+        }
+    }
+
+    Mat patch       = prev(Rect(center.x - radius, center.y - radius, patch_size,   patch_size));
+    Mat search_area = next(Rect(search_corner.x,   search_corner.y,   search_width, patch_size));
+
+    Mat result;
+    matchTemplate(search_area, patch, result, CV_TM_CCORR_NORMED);
+
+    // imshow("prev", prev);
+    imshow("patch", patch);
+    // imshow("search area", search_area);
+    // imshow("result", result);
+
+    float min_ccr = INFINITY;
+
+
+    for (int col = 0; col < result.cols; col++) {
+        if (result.at<float>(0, col) < min_ccr) {
+            min_ccr = result.at<float>(0, col);
+            *disparity = col;
+        }
+    }
+
+    if (!inverse) {
+        *disparity = result.cols - *disparity;
+    }
+
+    for (int row = 0; row < patch.rows; row++) {
+        for (int col = 0; col < patch.cols; col++) {
+            search_area.at<uchar>(row, col - *disparity) = patch.at<uchar>(row, col);
+        }
+    }
+    
+    // imshow("search area", search_area);
+    // waitKey(0);
+}
+
+
 static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
                        const int radius, const int max_disparity,
                        match_t match_fn, bool inverse = false)
@@ -209,80 +269,16 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
         cout << "." << flush;
 
         for (int lcol = radius; lcol < left.cols - radius; lcol++) {
-
             // cout << lrow << ", " << lcol << endl;
 
             int shift = 0;
-            // float best_match = 0;
             float result = 0;
 
             match_fn(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift, inverse);
-            // matchSSD(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
-            // matchSAD(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift);
 
-            // Mat patch (left,
-            //            Range(lrow - radius, lrow + radius),
-            //            Range(lcol - radius, lcol + radius));
-
-            // Mat search (right,
-            //             Range(lrow - radius, lrow + radius),
-            //             Range(0, right.cols));
-
-            // Mat result;
-
-            // matchTemplate(search, patch, result, CV_TM_SQDIFF);
-
-
-
-            // double min_val;
-            // double max_val;
-            // Point min_loc;
-
-            // minMaxLoc(result, &min_val, &max_val, &min_loc);
-
-
-            // // Mat canvas;
-            // // search.copyTo(canvas);
-
-            // // cv::rectangle(
-            // //     canvas, 
-            // //     min_loc, 
-            // //     Point(min_loc.x + patch.cols, min_loc.y + patch.rows), 
-            // //     CV_RGB(0,255,0),
-            // //     2
-            // // );
-            // // imshow("search", canvas);
-            // // imshow("patch", patch);
-            // // waitKey(0);
-
-
-            // min_loc.y += lrow;
-
-            // shift = min_loc.x - lcol;
-
-            // cout << "min_loc " << min_loc << endl;
-            // cout << "cnt_loc [" << lcol << ", " << lrow << "]" << endl;
-
-            // for (int row = min_loc; row < patch.rows; row++) {
-            //     for (int col = min_loc; col < patch.cols; col++) {
-            //         canvas.at<uchar>(row, col) = right.at<uchar>(row, col)
-            //     }
-            // }
-
-            // cout << result << endl;
-            // cout << "min = " << min_val << " " << min_loc << endl;
-            // waitKey(0);
-
-            // if (result > best_match) {
-                // best_match = result;
-                disparity.at<uchar>(lrow, lcol) = shift;                
-            // }
-
-
+            disparity.at<uchar>(lrow, lcol) = shift;                
         }
     }
-
-    cout << endl;
 }
 
 
@@ -559,8 +555,7 @@ int main(int argc, char const *argv[])
                 } else if (match_name == "sad") {
                     match_fn = &matchSAD;
                 } else if (match_name == "ccr") {
-                    cerr << argv[0] << ": cross correlation not implemented yet" << endl;
-                    return 1;
+                    match_fn = &matchCCR;
                 } else {
                     cerr << argv[0] << ": Invalid correlation method '" << optarg << "'" << endl;
                     return 1;

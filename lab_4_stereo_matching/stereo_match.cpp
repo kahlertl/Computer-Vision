@@ -25,6 +25,10 @@ static void usage()
     cout << "                          disabled. Default: 2" << endl;
     cout << "    -g, --ground-truth    Optimal disparity image. This activates the" << endl;
     cout << "                          search for the optimal block size for each pixel." << endl;
+    cout << "                          The radius parameter will be used for the step" << endl;
+    cout << "                          range [0, step]. For each element in the interval" << endl;
+    cout << "                          there will be a match performed with radius = 2^step" << endl;
+    cout << "                             2^step" << endl;
     cout << "    -c, --correlation     Method for computing correlation. There are:" << endl;
     cout << "                              ssd  sum of square differences" << endl;
     cout << "                              sad  sum of absolute differences" << endl;
@@ -201,10 +205,13 @@ static float matchCCR(const int radius, const Mat& prev, const Mat& next, const 
                       const int max_disparity, float* best_match, int* disparity, bool inverse)
 {
     const int patch_size = 2 * radius + 1;    
-    int search_width = max_disparity + 2 * radius;
+    int search_width     = max_disparity + 2 * radius;
+    
+    // top left corner of the search area
     Point2i search_corner;
     search_corner.y = center.y - radius;
 
+    // should we search to the right side?
     if (!inverse) {
         search_corner.x = center.x - search_width + radius;
 
@@ -220,19 +227,16 @@ static float matchCCR(const int radius, const Mat& prev, const Mat& next, const 
         }
     }
 
+    // cut off the patch and search area from the image
     Mat patch       = prev(Rect(center.x - radius, center.y - radius, patch_size,   patch_size));
     Mat search_area = next(Rect(search_corner.x,   search_corner.y,   search_width, patch_size));
 
+    // perform normed cross correlation matching
     Mat result;
     matchTemplate(search_area, patch, result, CV_TM_CCORR_NORMED);
 
-    // imshow("prev", prev);
-    // imshow("patch", patch);
-    // imshow("search area", search_area);
-    // imshow("result", result);
-
+    // search for the best match
     float max_ccr = -INFINITY;
-
 
     for (int col = 0; col < result.cols; col++) {
         if (result.at<float>(0, col) > max_ccr) {
@@ -241,18 +245,22 @@ static float matchCCR(const int radius, const Mat& prev, const Mat& next, const 
         }
     }
 
+    // if we have searched on the left side, we have to 
+    // 
+    //    0   1   2   3   4   5 
+    //  -------------------------
+    //  |   |   |   | x |   |   |
+    //  -------------------------
+    //                    ^
+    //                    |
+    //                  center.x
+    // 
+    // we have to cout the cols from the right to the
+    // maximum, in this example: 5 - 3 = 2
+    // 
     if (!inverse) {
         *disparity = result.cols - *disparity;
     }
-
-    // for (int row = 0; row < patch.rows; row++) {
-    //     for (int col = 0; col < patch.cols; col++) {
-    //         search_area.at<uchar>(row, col - *disparity) = patch.at<uchar>(row, col);
-    //     }
-    // }
-    
-    // imshow("search area", search_area);
-    waitKey(0);
 }
 
 
@@ -325,34 +333,6 @@ static void lrcCompensation(Mat& disparity, const Mat& disparity_revert, const u
 }
 
 
-/**
- * Normalizes the disparity map to an grayscale image [0, 255].
- * Does not works inplace.
- */
-static void normDisp(Mat& disparity, Mat& normalized)
-{
-    double minval;
-    double maxval;
-
-    // initialize matrix if necessary
-    normalized = Mat::zeros(disparity.size(), CV_8UC1);
-
-    // search minimum and maximum of the disparity map 
-    minMaxLoc(disparity, &minval, &maxval);
-
-    // cout << "min: " << minval << ", maxval: " << maxval << endl;
-
-    // compute normalization scaling factor to get all values into
-    // range [0, 255]
-    float norm = 255.0 / (maxval - minval);
-
-    for (int row = 0; row < disparity.rows; row++) {
-        for (int col = 0; col < disparity.cols; col++) {
-            normalized.at<uchar>(row, col) =  norm * (disparity.at<uchar>(row, col) - minval);
-        }
-    }
-}
-
 static void stereoMatch(const Mat& img_prev, const Mat& img_next, Mat& disparity,
                                 const int radius, const int max_disparity, const int median_radius,
                                 match_t match_fn) 
@@ -370,28 +350,6 @@ static void stereoMatch(const Mat& img_prev, const Mat& img_next, Mat& disparity
         // apply median filter
         medianBlur(disparity, disparity, 2 * median_radius + 1);
     } 
-}
-
-
-static void _calcMedianDisp(const Mat& prev, const Mat& next, Mat& disp,
-                            const int radius, const int max_disparity, const int median_radius,
-                            match_t match_fn)
-{
-    Mat matched;
-    Mat gray;
-
-    blockMatch(prev, next, matched, radius, max_disparity, match_fn);
-
-    // normalize the result to [ 0, 255 ]
-    normDisp(matched, gray);
-
-    // you can disable median filtering    
-    if (median_radius) {
-        // apply median filter
-        medianBlur(gray, disp, 2 * median_radius + 1);
-    } else {
-        disp = gray;
-    }
 }
 
 
@@ -519,13 +477,19 @@ int main(int argc, char const *argv[])
         // imshow("GT", ground_truth);
         // waitKey(0);
 
-        uint steps = 3;
+        uint steps = radius;
 
         // try different block sizes 
         vector<Mat> disparities(steps);
         for (int i = 0; i < steps; i++) {
-            cout << "block size:" << (2 * (i + 1) + 1) << endl;
-            stereoMatch(img_prev, img_next, disparities[i], i + 1, max_disparity, median_radius, match_fn);
+            // variable radius
+            int var_radius = pow(2, i);
+
+            cout << "block size: " << (2 * var_radius + 1) << endl;
+
+            stereoMatch(img_prev, img_next, disparities[i], var_radius, max_disparity, median_radius, match_fn);
+
+            // normalize result to [0, 255]
             normalize(disparities[i], disparities[i], 0, 255, NORM_MINMAX);
         }
 
@@ -560,15 +524,11 @@ int main(int argc, char const *argv[])
         stereoMatch(img_prev, img_next, disparity, radius, max_disparity, median_radius, match_fn);
     }
      
-    Mat gray;
     // normalize the result to [ 0, 255 ]
-    normDisp(disparity, gray);
-
-    imshow("gray", gray);
-    waitKey(0);
+    normalize(disparity, disparity, 0, 255, NORM_MINMAX);
 
     try {
-        imwrite(target, gray);
+        imwrite(target, disparity);
     } catch (runtime_error& ex) {
         cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
 

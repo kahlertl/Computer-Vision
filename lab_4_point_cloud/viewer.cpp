@@ -11,10 +11,10 @@ Mat canvas;
 
 int max_disp = 0;
 
-int tracker_alpha = 180;
-int tracker_beta  = 135;
-int tracker_zoom  = 100;
-int tracker_dist  = 200;
+int tracker_alpha = 210;
+int tracker_beta  = 120;
+int tracker_zoom  = 85;
+int tracker_dist  = 40;
 
 
 /**
@@ -62,8 +62,7 @@ void render(int, void*)
     Mat rot_y = RotY((tracker_beta  - 180));
 
     double zoom = tracker_zoom / 100.0;
-    // double dist = (tracker_dist - 50) / 100.0;
-    int dist = tracker_dist;
+    double dist = (50 - tracker_dist + 1);
 
     double mindisp;
     double maxdisp;
@@ -85,33 +84,31 @@ void render(int, void*)
                 continue;
             }
 
-            double depth = maxdisp / disparity.at<uchar>(row, col);
+            double depth = maxdisp / disparity.at<uchar>(row, col) + dist;
+            // double depth = 1;
 
             Mat point = (Mat_<double>(3,1) << col - image.cols / 2,
                                               row - image.rows / 2,
                                               depth);
 
-            // cout << point.at<double>(0,0) << " " << point.at<double>(1,0) << " " << point.at<double>(2,0) << " " << point.at<double>(3,0) << endl;
+
+            // zooming
+            point.at<double>(0,0) *= zoom;
+            point.at<double>(1,0) *= zoom;
 
             // rotating
             point = rot_x * rot_y * point;
 
             // revert centering
-            point.at<double>(0,0) += image.cols / 2;
-            point.at<double>(1,0) += image.rows / 2;
-            // zooming
-            point.at<double>(0,0) *= zoom;
-            point.at<double>(1,0) *= zoom;
-            point.at<double>(2,0) *= zoom;
+            // 
+            // we do not revert the whole translation of the half of the image sizes, because there
+            // are a few outliers that would move the point cloud in the top left corner
+            point.at<double>(0,0) += image.cols / 1.5; // 2;
+            point.at<double>(1,0) += image.rows / 1.5; // 2;
 
-            // // normalize z-component with camera distance
-            // // point.at<double>(0,0) /= point.at<double>(2,0) + dist;
-            // // point.at<double>(1,0) /= point.at<double>(2,0) + dist;
-            // // point.at<double>(2,0) /= point.at<double>(2,0);
-
-
-            const int x2d = point.at<double>(0,0) / depth;
-            const int y2d = point.at<double>(1,0) / depth;
+            
+            const int x2d = point.at<double>(0,0) / depth * dist;
+            const int y2d = point.at<double>(1,0) / depth * dist;
 
             // const int x2d = point.at<double>(0,0); // cols
             // const int y2d = point.at<double>(1,0); // rows
@@ -166,7 +163,7 @@ int main(int argc, char const *argv[])
     createTrackbar("alpha",    "cloud", &tracker_alpha, 360, render);
     createTrackbar("beta",     "cloud", &tracker_beta,  360, render);
     createTrackbar("zoom",     "cloud", &tracker_zoom,  200, render);
-    createTrackbar("distance", "cloud", &tracker_dist,  1000, render);
+    createTrackbar("distance", "cloud", &tracker_dist,  50, render);
 
     // initial rendering of the scene
     render(0, NULL);

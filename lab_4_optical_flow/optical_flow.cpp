@@ -9,17 +9,43 @@ using namespace std;
 using namespace cv;
 
 
-static void drawOptFlowMap(const Mat& flow, Mat& color_flow_map, int step, const Scalar& color)
+static void drawOpticalFlow(const Mat& flow, Mat& colorized)
 {
-    for (int y = 0; y < color_flow_map.rows; y += step) {
-        for (int x = 0; x < color_flow_map.cols; x += step) {
-            const Point2f& fxy = flow.at<Point2f>(y, x);
+    // extraxt x and y channels
+    Mat xy[2]; // x,y 
 
-            line(color_flow_map, Point(x,y), Point(cvRound(x + fxy.x), cvRound(y + fxy.y)),
-                 color);
-            circle(color_flow_map, Point(x,y), 2, color, -1);
-        }
-    }
+    split(flow, xy);
+
+    // calculate angle and magnitude for the HSV color wheel
+    Mat magnitude;
+    Mat angle;
+
+    cartToPolar(xy[0], xy[1], magnitude, angle, true);
+
+    // translate magnitude to range [0,1]
+    double mag_max;
+    minMaxLoc(magnitude, 0, &mag_max);
+
+    magnitude.convertTo(
+        magnitude,    // output matrix
+        -1,           // type of the ouput matrix, if negative same type as input matrix
+        1.0 / mag_max // scaling factor
+    );
+
+    // build hsv image (hue-saturation-value)
+    Mat _hsv[3];
+    Mat hsv;
+
+    // create separte channels
+    _hsv[0] = angle;                           // H (hue)              [0,360]
+    _hsv[1] = magnitude;                       // S (saturation)       [0,1]
+    _hsv[2] = Mat::ones(angle.size(), CV_32F); // V (brigthness value) [0,1]
+
+    // merge the three components to a three channel HSV image
+    merge(_hsv, 3, hsv);
+
+    //convert to BGR and show
+    cvtColor(hsv, colorized, cv::COLOR_HSV2BGR);
 }
 
 
@@ -28,7 +54,7 @@ int main(int argc, char const *argv[])
     Mat previmage;
     Mat image;
     Mat flow;
-    Mat color_flow;
+    Mat colorized;
 
     if (argc != 3) {
         cout << "Usage: ./optical_flow previmage image" << endl;
@@ -72,15 +98,21 @@ int main(int argc, char const *argv[])
     );
 
     // Colorize
-    // cvtColor(previmage, color_flow, COLOR_GRAY2BGR);
+    // cvtColor(previmage, colorized, COLOR_GRAY2BGR);
 
     // Draw flow map
-    // drawOptFlowMap(flow, color_flow, 16, Scalar(0, 255, 0));
+    drawOpticalFlow(flow, colorized);
 
     // Display
-    // imshow("Optical flow", color_flow);    
-    // imshow("Optical flow", flow);    
-    cvWaitKey(0);
+    imshow("Optical flow", colorized);    
+
+    cout << "Press ESC to exit ..." << endl;
+
+    while (true) {
+        if ((uchar) waitKey(0) == 27) {
+            break;
+        }
+    }
 
     return 0;
 }

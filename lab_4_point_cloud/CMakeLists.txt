@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( viewer )
+find_package( OpenCV REQUIRED )
+add_executable( viewer viewer.cpp )
+target_link_libraries( viewer ${OpenCV_LIBS} )
+set(CMAKE_CXX_FLAGS "-std=c++0x")

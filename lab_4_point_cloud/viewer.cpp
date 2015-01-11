@@ -86,8 +86,8 @@ void render(int, void*)
             // compute depth (z-component) of the point
             double depth = maxdisp / disparity.at<uchar>(row, col) + dist;
 
-            Mat point = (Mat_<double>(3,1) << col - image.cols / 2,
-                                              row - image.rows / 2,
+            Mat point = (Mat_<double>(3,1) << col - image.cols / 2 + canvas.cols / 2,
+                                              row - image.rows / 2 + canvas.cols / 2,
                                               depth);
 
             // zooming
@@ -98,11 +98,8 @@ void render(int, void*)
             point = rot_x * rot_y * point;
 
             // revert centering
-            // 
-            // we do not revert the whole translation of the half of the image sizes, because there
-            // are a few outliers that would move the point cloud in the top left corner
-            point.at<double>(0,0) += image.cols / 1.5; // 2;
-            point.at<double>(1,0) += image.rows / 1.5; // 2;
+            point.at<double>(0,0) += image.cols / 2;
+            point.at<double>(1,0) += image.rows / 2;
 
             const int x2d = point.at<double>(0,0) / depth * dist; // cols
             const int y2d = point.at<double>(1,0) / depth * dist; // rows
@@ -150,7 +147,7 @@ int main(int argc, char const *argv[])
 
     // normalize(disparity, disparity, 0, 16, NORM_MINMAX);
 
-    canvas = Mat(image.size(), image.type());
+    canvas = Mat(500, 500, image.type());
 
     // canvas view
     namedWindow("cloud", WINDOW_AUTOSIZE);

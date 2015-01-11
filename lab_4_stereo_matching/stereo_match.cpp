@@ -488,14 +488,19 @@ int main(int argc, char const *argv[])
             }
         }
 
-        // cout << opt_block_size << endl;
-        // cout << disparities[0] << endl;
+        normalize(opt_block_size, opt_block_size, 0, 255, NORM_MINMAX);
 
-        // normalize(opt_block_size, opt_block_size, 0, 255, NORM_MINMAX);
-        // imshow("Optimal block size for each pixel", opt_block_size);
+        // display block sizes
+        imshow("Optimal block size for each pixel", opt_block_size);
 
-
-        // disparity = disparities[0];
+        // wait for ESC key
+        while (true) {
+            if ((uchar) waitKey(0) == 27) {
+                break;
+            }
+        }
+        // write optimal block size to file
+        // imwrite("opt-block-size.png", opt_block_size);
 
     } else {
         stereoMatch(left, right, disparity,

@@ -418,7 +418,7 @@ int main(int argc, char const *argv[])
                 break;
 
             case 'r':
-                radius = atoi(optarg);
+                radius = stoi(string(optarg));
                 if (radius < 0) {
                     cerr << argv[0] << ": Invalid radius " << optarg << endl;
                     return 1;
@@ -426,7 +426,7 @@ int main(int argc, char const *argv[])
                 break;
 
             case 'd':
-                max_disparity = atoi(optarg);
+                max_disparity = stoi(string(optarg));
                 if (max_disparity <= 0) {
                     cerr << argv[0] << ": Invalid maximal disparity " << optarg << endl;
                     return 1;
@@ -438,7 +438,7 @@ int main(int argc, char const *argv[])
                 break;
 
             case 'm':
-                median_radius = atoi(optarg);
+                median_radius = stoi(string(optarg));
                 if (median_radius < 0) {
                     cerr << argv[0] << ": Invalid median radius " << optarg << endl;
                     return 1;

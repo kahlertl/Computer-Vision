@@ -440,7 +440,7 @@ int main(int argc, char const *argv[])
     cout << "    match fn:      " << match_name << endl;
     cout << "    max-disparity: " << max_disparity << endl;
     cout << "    median radius: " << median_radius << endl;
-    cout << "    ground truth:  " << ((ground_truth.empty()) ? "true" : "false") << endl;
+    cout << "    ground truth:  " << ((ground_truth.empty()) ? "false" : "true") << endl;
     cout << "    LRC threshold: " << lrc_threshold << endl;
     cout << "    target:        " << target << endl;
 

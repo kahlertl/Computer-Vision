@@ -8,7 +8,8 @@ using namespace std;
 using namespace cv;
 
 // function pointer to a function that can be used for block matching
-typedef float(*match_t)(const int, const Mat&, const Mat&, const Point2i, const int, float*, int*, bool);
+typedef int(*match_t)(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+                      const int max_disparity, bool inverse);
 
 
 static void usage()
@@ -62,11 +63,10 @@ static bool parsePositionalImage(Mat& image, const int channels, const string& n
 }
 
 
-static float matchSSD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
-                      const int max_disparity, float* best_match, int* disparity, bool inverse)
+static int matchSSD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+                      const int max_disparity, bool inverse)
 {
-    // we do not want to cast rapidly from int to float, because the SSD is an
-    // integer
+    int disparity = 0;
     int min_ssd = INT_MAX;
 
     // just looking into one direction
@@ -88,24 +88,12 @@ static float matchSSD(const int radius, const Mat& prev, const Mat& next, const 
         end = next.cols - center.x;
     }
 
-    // cout << "center.y = " << center.y << endl;
-    // cout << "start    = " << start << endl;
-    // cout << "center.y - start = " << (center.y - start) << endl;
-    // cout << "end = " << end << endl;
-
-    // Mat patch  = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
-    // Mat search = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
-
     for (int col_offset = start; col_offset < end; col_offset += 1) {
         int ssd = 0;
 
         // walk through the patch
         for (int prow = -radius; prow <= radius; prow++) {
             for (int pcol = -radius; pcol <= radius; pcol++) {
-
-                // patch.at<uchar>(prow + radius, pcol + radius)  = prev.at<uchar>(center.y + prow, center.x + pcol);
-                // search.at<uchar>(prow + radius, pcol + radius) = next.at<uchar>(center.y + prow, center.x + pcol + col_offset);
-
                 // grayscale images => uchar
                 // patch - image
                 int diff =    prev.at<uchar>(center.y + prow, center.x + pcol)
@@ -115,53 +103,20 @@ static float matchSSD(const int radius, const Mat& prev, const Mat& next, const 
             }
         }
 
-
-        // if (center.y > 200 && center.x > 120) {
-        //     imshow("patch", patch);
-        //     imshow("search", search);
-        //     waitKey(0);
-
-        //     cout << col_offset << ": " << ssd << endl;
-        // }
-
-
         if (ssd < min_ssd) {
             min_ssd = ssd;
-            *disparity = abs(col_offset);
+            disparity = abs(col_offset);
         }
-
     }
 
-    // if (center.y > 150) {
-
-    //     Mat canvas;
-    //     left.copyTo(canvas);
-
-    //     for (int row = -radius; row < radius; row++) {
-    //         for (int col = -radius; col < radius; col++) {
-    //             // cout << row << ", " << col << endl;
-    //             // canvas.at<uchar>(center.y + row, center.x + col) = left.at<uchar>(center.y + row, center.x + col);
-    //             // canvas.at<uchar>(center.y + row, center.x + col) = 0;
-    //             // canvas.at<uchar>(center.y + row, center.x + col) = right.at<uchar>(center.y + row, center.x + col);
-    //             canvas.at<uchar>(center.y + row, center.x + col) = right.at<uchar>(center.y + row, center.x + col - (int) *disparity);
-    //         }
-    //     }
-    //     imshow("canvas", canvas);
-    //     waitKey(10);
-
-    // }
-
-    // cout << "disparity = " << *disparity << endl;
-
-    // *best_match = (float) best_ssd;
+    return disparity;
 }
 
 
-static float matchSAD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
-                      const int max_disparity, float* best_match, int* disparity, bool inverse)
+static int matchSAD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+                      const int max_disparity, bool inverse)
 {
-    // we do not want to cast rapidly from int to float, because the SSD is an
-    // integer
+    int disparity = 0;
     int min_sad = INT_MAX;
 
     // just looking into one direction
@@ -198,19 +153,22 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
 
         if (sad < min_sad) {
             min_sad = sad;
-            *disparity = abs(col_offset);
+            disparity = abs(col_offset);
         }
-
     }
+
+    return disparity;
 }
 
 
-static float matchCCR(const int radius, const Mat& prev, const Mat& next, const Point2i center,
-                      const int max_disparity, float* best_match, int* disparity, bool inverse)
+static int matchCCR(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+                      const int max_disparity, bool inverse)
 {
     const int patch_size = 2 * radius + 1;    
     int search_width     = max_disparity + 2 * radius;
     
+    int disparity = 0;
+
     // top left corner of the search area
     Point2i search_corner;
     search_corner.y = center.y - radius;
@@ -245,7 +203,7 @@ static float matchCCR(const int radius, const Mat& prev, const Mat& next, const 
     for (int col = 0; col < result.cols; col++) {
         if (result.at<float>(0, col) > max_ccr) {
             max_ccr = result.at<float>(0, col);
-            *disparity = col;
+            disparity = col;
         }
     }
 
@@ -263,8 +221,10 @@ static float matchCCR(const int radius, const Mat& prev, const Mat& next, const 
     // maximum, in this example: 5 - 3 = 2
     // 
     if (!inverse) {
-        *disparity = result.cols - *disparity;
+        disparity = result.cols - disparity;
     }
+
+    return disparity;
 }
 
 
@@ -280,14 +240,8 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
         cout << "." << flush;
 
         for (int lcol = radius; lcol < left.cols - radius; lcol++) {
-            // cout << lrow << ", " << lcol << endl;
-
-            int shift = 0;
-            float result = 0;
-
-            match_fn(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift, inverse);
-
-            disparity.at<uchar>(lrow, lcol) = shift;                
+            disparity.at<uchar>(lrow, lcol) = match_fn(radius, left, right, Point2i(lcol, lrow),
+                                                       max_disparity, inverse);;                
         }
     }
 

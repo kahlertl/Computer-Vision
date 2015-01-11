@@ -8,7 +8,8 @@ using namespace std;
 using namespace cv;
 
 // function pointer to a function that can be used for block matching
-typedef float(*match_t)(const int, const Mat&, const Mat&, const Point2i, const int, float*, int*, bool);
+typedef int(*match_t)(const int radius, const Mat& left, const Mat& right, const Point2i center,
+                      const int max_disparity, bool inverse);
 
 
 static void usage()
@@ -62,11 +63,10 @@ static bool parsePositionalImage(Mat& image, const int channels, const string& n
 }
 
 
-static float matchSSD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
-                      const int max_disparity, float* best_match, int* disparity, bool inverse)
+static int matchSSD(const int radius, const Mat& left, const Mat& right, const Point2i center,
+                      const int max_disparity, bool inverse)
 {
-    // we do not want to cast rapidly from int to float, because the SSD is an
-    // integer
+    int disparity = 0;
     int min_ssd = INT_MAX;
 
     // just looking into one direction
@@ -84,17 +84,9 @@ static float matchSSD(const int radius, const Mat& prev, const Mat& next, const 
     if (center.x + start < 0) {
         start = -(center.x - radius);
     }
-    if (center.x + end > next.cols) {
-        end = next.cols - center.x;
+    if (center.x + end > right.cols) {
+        end = right.cols - center.x;
     }
-
-    // cout << "center.y = " << center.y << endl;
-    // cout << "start    = " << start << endl;
-    // cout << "center.y - start = " << (center.y - start) << endl;
-    // cout << "end = " << end << endl;
-
-    // Mat patch  = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
-    // Mat search = Mat::zeros(2 * radius + 1, 2 * radius + 1, CV_8UC1);
 
     for (int col_offset = start; col_offset < end; col_offset += 1) {
         int ssd = 0;
@@ -102,66 +94,29 @@ static float matchSSD(const int radius, const Mat& prev, const Mat& next, const 
         // walk through the patch
         for (int prow = -radius; prow <= radius; prow++) {
             for (int pcol = -radius; pcol <= radius; pcol++) {
-
-                // patch.at<uchar>(prow + radius, pcol + radius)  = prev.at<uchar>(center.y + prow, center.x + pcol);
-                // search.at<uchar>(prow + radius, pcol + radius) = next.at<uchar>(center.y + prow, center.x + pcol + col_offset);
-
                 // grayscale images => uchar
                 // patch - image
-                int diff =    prev.at<uchar>(center.y + prow, center.x + pcol)
-                           - next.at<uchar>(center.y + prow, center.x + pcol + col_offset);
+                int diff =   left.at<uchar>(center.y + prow, center.x + pcol)
+                           - right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
 
                 ssd  += diff * diff;
             }
         }
 
-
-        // if (center.y > 200 && center.x > 120) {
-        //     imshow("patch", patch);
-        //     imshow("search", search);
-        //     waitKey(0);
-
-        //     cout << col_offset << ": " << ssd << endl;
-        // }
-
-
         if (ssd < min_ssd) {
             min_ssd = ssd;
-            *disparity = abs(col_offset);
+            disparity = abs(col_offset);
         }
-
     }
 
-    // if (center.y > 150) {
-
-    //     Mat canvas;
-    //     left.copyTo(canvas);
-
-    //     for (int row = -radius; row < radius; row++) {
-    //         for (int col = -radius; col < radius; col++) {
-    //             // cout << row << ", " << col << endl;
-    //             // canvas.at<uchar>(center.y + row, center.x + col) = left.at<uchar>(center.y + row, center.x + col);
-    //             // canvas.at<uchar>(center.y + row, center.x + col) = 0;
-    //             // canvas.at<uchar>(center.y + row, center.x + col) = right.at<uchar>(center.y + row, center.x + col);
-    //             canvas.at<uchar>(center.y + row, center.x + col) = right.at<uchar>(center.y + row, center.x + col - (int) *disparity);
-    //         }
-    //     }
-    //     imshow("canvas", canvas);
-    //     waitKey(10);
-
-    // }
-
-    // cout << "disparity = " << *disparity << endl;
-
-    // *best_match = (float) best_ssd;
+    return disparity;
 }
 
 
-static float matchSAD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
-                      const int max_disparity, float* best_match, int* disparity, bool inverse)
+static int matchSAD(const int radius, const Mat& left, const Mat& right, const Point2i center,
+                      const int max_disparity, bool inverse)
 {
-    // we do not want to cast rapidly from int to float, because the SSD is an
-    // integer
+    int disparity = 0;
     int min_sad = INT_MAX;
 
     // just looking into one direction
@@ -177,8 +132,8 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
     if (center.x + start < 0) {
         start = -(center.x - radius);
     }
-    if (center.x + end > next.cols) {
-        end = next.cols - center.x;
+    if (center.x + end > right.cols) {
+        end = right.cols - center.x;
     }
 
     for (int col_offset = start; col_offset < end; col_offset += 1) {
@@ -189,8 +144,8 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
             for (int pcol = -radius; pcol <= radius; pcol++) {
                 // grayscale images => uchar
                 // patch - image
-                int diff =   prev.at<uchar>(center.y + prow, center.x + pcol)
-                           - next.at<uchar>(center.y + prow, center.x + pcol + col_offset);
+                int diff =   left.at<uchar>(center.y + prow, center.x + pcol)
+                           - right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
 
                 sad  += abs(diff);
             }
@@ -198,19 +153,22 @@ static float matchSAD(const int radius, const Mat& prev, const Mat& next, const 
 
         if (sad < min_sad) {
             min_sad = sad;
-            *disparity = abs(col_offset);
+            disparity = abs(col_offset);
         }
-
     }
+
+    return disparity;
 }
 
 
-static float matchCCR(const int radius, const Mat& prev, const Mat& next, const Point2i center,
-                      const int max_disparity, float* best_match, int* disparity, bool inverse)
+static int matchCCR(const int radius, const Mat& left, const Mat& right, const Point2i center,
+                      const int max_disparity, bool inverse)
 {
     const int patch_size = 2 * radius + 1;    
     int search_width     = max_disparity + 2 * radius;
     
+    int disparity = 0;
+
     // top left corner of the search area
     Point2i search_corner;
     search_corner.y = center.y - radius;
@@ -226,14 +184,14 @@ static float matchCCR(const int radius, const Mat& prev, const Mat& next, const 
     } else {
         search_corner.x = center.x -radius;
 
-        if (search_corner.x + search_width >= next.cols) {
-            search_width = (next.cols - 1) - search_corner.x;
+        if (search_corner.x + search_width >= right.cols) {
+            search_width = (right.cols - 1) - search_corner.x;
         }
     }
 
     // cut off the patch and search area from the image
-    Mat patch       = prev(Rect(center.x - radius, center.y - radius, patch_size,   patch_size));
-    Mat search_area = next(Rect(search_corner.x,   search_corner.y,   search_width, patch_size));
+    Mat patch       = left(Rect(center.x - radius, center.y - radius, patch_size,   patch_size));
+    Mat search_area = right(Rect(search_corner.x,   search_corner.y,   search_width, patch_size));
 
     // perform normed cross correlation matching
     Mat result;
@@ -245,7 +203,7 @@ static float matchCCR(const int radius, const Mat& prev, const Mat& next, const 
     for (int col = 0; col < result.cols; col++) {
         if (result.at<float>(0, col) > max_ccr) {
             max_ccr = result.at<float>(0, col);
-            *disparity = col;
+            disparity = col;
         }
     }
 
@@ -263,8 +221,10 @@ static float matchCCR(const int radius, const Mat& prev, const Mat& next, const 
     // maximum, in this example: 5 - 3 = 2
     // 
     if (!inverse) {
-        *disparity = result.cols - *disparity;
+        disparity = result.cols - disparity;
     }
+
+    return disparity;
 }
 
 
@@ -280,14 +240,8 @@ static void blockMatch(const Mat& left, const Mat& right, Mat& disparity,
         cout << "." << flush;
 
         for (int lcol = radius; lcol < left.cols - radius; lcol++) {
-            // cout << lrow << ", " << lcol << endl;
-
-            int shift = 0;
-            float result = 0;
-
-            match_fn(radius, left, right, Point2i(lcol, lrow), max_disparity, &result, &shift, inverse);
-
-            disparity.at<uchar>(lrow, lcol) = shift;                
+            disparity.at<uchar>(lrow, lcol) = match_fn(radius, left, right, Point2i(lcol, lrow),
+                                                       max_disparity, inverse);;                
         }
     }
 
@@ -342,18 +296,18 @@ static void lrcCompensation(Mat& disparity, const Mat& disparity_revert, const u
 }
 
 
-static void stereoMatch(const Mat& img_prev, const Mat& img_next, Mat& disparity,
+static void stereoMatch(const Mat& left, const Mat& right, Mat& disparity,
                                 const int radius, const int max_disparity, const int median_radius,
                                 match_t match_fn, int lrc = -1) 
 {
-    Mat disparity_n2p; // from next to prev (for left right consistency -- LRC)
+    Mat disparity_n2p; // from right to left (for left right consistency -- LRC)
 
-    blockMatch(img_prev, img_next, disparity, radius, max_disparity, match_fn);
+    blockMatch(left, right, disparity, radius, max_disparity, match_fn);
 
     // Left right consistency
     if (lrc > 0) {
         // match in the other direction
-        blockMatch(img_next, img_prev, disparity_n2p, radius, max_disparity, match_fn, true);
+        blockMatch(right, left, disparity_n2p, radius, max_disparity, match_fn, true);
 
         // compute occluded regions and in paint them with the nearest neighbor
         // in the column that is consistent
@@ -370,10 +324,10 @@ static void stereoMatch(const Mat& img_prev, const Mat& img_next, Mat& disparity
 
 int main(int argc, char const *argv[])
 {
-    Mat img_prev;
-    Mat img_next;
-    Mat image;         // img_prev, but loaded with colors
-    Mat disparity;     // from prev to next
+    Mat left;
+    Mat right;
+    Mat image;         // left, but loaded with colors
+    Mat disparity;     // from left to right
     Mat ground_truth;  // optimal disparity map for the image pairs
 
     // parameters
@@ -476,10 +430,10 @@ int main(int argc, char const *argv[])
 
     // parse positional arguments
     if (!parsePositionalImage(image,    CV_LOAD_IMAGE_COLOR,     "frame1", argc, argv)) { return 1; }
-    if (!parsePositionalImage(img_next, CV_LOAD_IMAGE_GRAYSCALE, "frame2", argc, argv)) { return 1; }
+    if (!parsePositionalImage(right, CV_LOAD_IMAGE_GRAYSCALE, "frame2", argc, argv)) { return 1; }
 
     // convert previous image into grayscale
-    cvtColor(image, img_prev, CV_BGR2GRAY);
+    cvtColor(image, left, CV_BGR2GRAY);
 
     cout << "Parameters: " << endl;
     cout << "    radius:        " << radius << endl;
@@ -508,7 +462,7 @@ int main(int argc, char const *argv[])
 
             cout << "block size: " << (2 * var_radius + 1) << endl;
 
-            stereoMatch(img_prev, img_next, disparities[i],
+            stereoMatch(left, right, disparities[i],
                         // parameters
                         var_radius, max_disparity, median_radius, match_fn, lrc_threshold);
 
@@ -517,11 +471,11 @@ int main(int argc, char const *argv[])
         }
 
         // compare different disparities to ground truth and save block size
-        Mat opt_block_size = Mat(img_prev.size(), img_prev.type());
-            disparity      = Mat(img_prev.size(), img_prev.type());
+        Mat opt_block_size = Mat(left.size(), left.type());
+            disparity      = Mat(left.size(), left.type());
 
-        for (int row = 0; row < img_prev.rows; row++) {
-            for (int col = 0; col < img_prev.cols; col++) {
+        for (int row = 0; row < left.rows; row++) {
+            for (int col = 0; col < left.cols; col++) {
                 int smallest_diff = INT_MAX;
                 for (int i = 0; i < steps; i++) {
                     int diff = ground_truth.at<uchar>(row, col) - disparities[i].at<uchar>(row, col);
@@ -544,7 +498,7 @@ int main(int argc, char const *argv[])
         // disparity = disparities[0];
 
     } else {
-        stereoMatch(img_prev, img_next, disparity,
+        stereoMatch(left, right, disparity,
                     // parameters
                     radius, max_disparity, median_radius, match_fn, lrc_threshold);
     }
@@ -559,7 +513,6 @@ int main(int argc, char const *argv[])
 
         return 1;
     }
-
 
     return 0;
 }

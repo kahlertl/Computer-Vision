@@ -14,7 +14,7 @@ const Scalar red  = {0, 0, 255};
 int max_dist = 75;
 
 // number of Fourier coefficients
-// int num_coeff = 75;
+int num_coeff = 75;
 
 // pixel selected by user via mouse click
 Vec3b selected_pixel = {0, 0, 0};
@@ -99,7 +99,7 @@ static void findEquidistantPoints(const vector<Point>& contour, vector<Point>& p
     }
 }
 
-static void render()
+static void render(int, void*)
 {
     // Binary image
     Mat binary;
@@ -132,7 +132,7 @@ static void render()
 
 
     // Display result
-    imshow("Region", colorized);
+    imshow("Shape", colorized);
 }
 
 static void onMouse(int event, int x, int y, int, void*)
@@ -149,7 +149,7 @@ static void onMouse(int event, int x, int y, int, void*)
 
     selected_pixel = image.at<Vec3b>(y,x);
 
-    render();
+    render(0,0);
 }
 
 int main(int argc, char const *argv[])
@@ -165,26 +165,21 @@ int main(int argc, char const *argv[])
     }
 
     // Create a new windows
-    namedWindow("Region", 1);
+    namedWindow("Shape", 1);
     namedWindow("Input", 1);
 
-    // Create trackbar for distance range
-    createTrackbar(
-        "",
-        "Region",
-        &max_dist,
-        255,
-        // Use a lambda expression square the maximal distance,
-        // because we do not use the square root for better performance.
-        // After that, call render directly
-        [] (int, void*) { max_dist *= max_dist; render(); }
-    );
+    // Use a lambda expression to calculate the square maximal distance,
+    // because we do not use the square root for better performance.
+    // After that, call render directly
+    createTrackbar("color dist", "Shape", &max_dist,  255, [] (int, void*) { max_dist *= max_dist; render(0,0); });
+    createTrackbar("coeff",      "Shape", &num_coeff, 200, render);
 
     //set the callback function for any mouse event
     setMouseCallback("Input", onMouse, NULL);
 
     // Display image
     imshow("Input", image);
+    render(0,0);
 
     // Wait for ESC
     cout << "Press ESC to exit ..." << endl;

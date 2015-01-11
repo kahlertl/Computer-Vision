@@ -82,17 +82,24 @@ static int findLargestArea(Mat& search, vector<vector<Point> >& contours, vector
 }
 
 
-static void findEquidistantPoints(const vector<Point>& contour, vector<Point>& points)
+static void findEquidistantPoints(const vector<Point>& contour, vector<Point>& points, const int arc_length)
 {
     Point prev = contour[0];
+    const int sq_arc_length = arc_length * arc_length;
 
     for (int i = 0; i < contour.size(); i++) {
 
         // square distance between the previous point an the current one
-        int sqdist =    pow(prev.x - contour[i].x, 2)
-                      + pow(prev.y - contour[i].y, 2);
+        int sqdist =    pow(contour[i].x - prev.x, 2)
+                      + pow(contour[i].y - prev.y, 2);
 
-        if (sqdist > 10) {
+        if (i > 0 && contour[i - 1].y == prev.y) {
+            cout << contour[i] << sqdist << endl;
+        }
+
+        if (sqdist > sq_arc_length) {
+            // cout << prev << " - " << contour[i] << " = " << sqdist << endl;
+
             prev = contour[i];
             points.push_back(contour[i]);
         }
@@ -121,8 +128,16 @@ static void render(int, void*)
         // Draw largest contour in red to the colorized
         drawContours(colorized, contours, counter_index, red, CV_FILLED, 8, hierarchy);
 
+        for (int i = 0; i < contours[counter_index].size(); i++) {
+            colorized.at<Vec3b>(contours[counter_index][i].y, contours[counter_index][i].x) = {0, 255, 0};
+        }
+
+        const int counter_length = contours[counter_index].size();
+
+        int arc_length = counter_length / (num_coeff + 2);
+
         vector<Point> equidist_points;
-        findEquidistantPoints(contours[counter_index], equidist_points);
+        findEquidistantPoints(contours[counter_index], equidist_points, arc_length);
 
         // draw the equidistant points on the contour blue
         for (int i = 0; i < equidist_points.size(); i++) {

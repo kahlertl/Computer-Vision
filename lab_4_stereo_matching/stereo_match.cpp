@@ -8,7 +8,7 @@ using namespace std;
 using namespace cv;
 
 // function pointer to a function that can be used for block matching
-typedef int(*match_t)(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+typedef int(*match_t)(const int radius, const Mat& left, const Mat& right, const Point2i center,
                       const int max_disparity, bool inverse);
 
 
@@ -63,7 +63,7 @@ static bool parsePositionalImage(Mat& image, const int channels, const string& n
 }
 
 
-static int matchSSD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+static int matchSSD(const int radius, const Mat& left, const Mat& right, const Point2i center,
                       const int max_disparity, bool inverse)
 {
     int disparity = 0;
@@ -84,8 +84,8 @@ static int matchSSD(const int radius, const Mat& prev, const Mat& next, const Po
     if (center.x + start < 0) {
         start = -(center.x - radius);
     }
-    if (center.x + end > next.cols) {
-        end = next.cols - center.x;
+    if (center.x + end > right.cols) {
+        end = right.cols - center.x;
     }
 
     for (int col_offset = start; col_offset < end; col_offset += 1) {
@@ -96,8 +96,8 @@ static int matchSSD(const int radius, const Mat& prev, const Mat& next, const Po
             for (int pcol = -radius; pcol <= radius; pcol++) {
                 // grayscale images => uchar
                 // patch - image
-                int diff =    prev.at<uchar>(center.y + prow, center.x + pcol)
-                           - next.at<uchar>(center.y + prow, center.x + pcol + col_offset);
+                int diff =   left.at<uchar>(center.y + prow, center.x + pcol)
+                           - right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
 
                 ssd  += diff * diff;
             }
@@ -113,7 +113,7 @@ static int matchSSD(const int radius, const Mat& prev, const Mat& next, const Po
 }
 
 
-static int matchSAD(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+static int matchSAD(const int radius, const Mat& left, const Mat& right, const Point2i center,
                       const int max_disparity, bool inverse)
 {
     int disparity = 0;
@@ -132,8 +132,8 @@ static int matchSAD(const int radius, const Mat& prev, const Mat& next, const Po
     if (center.x + start < 0) {
         start = -(center.x - radius);
     }
-    if (center.x + end > next.cols) {
-        end = next.cols - center.x;
+    if (center.x + end > right.cols) {
+        end = right.cols - center.x;
     }
 
     for (int col_offset = start; col_offset < end; col_offset += 1) {
@@ -144,8 +144,8 @@ static int matchSAD(const int radius, const Mat& prev, const Mat& next, const Po
             for (int pcol = -radius; pcol <= radius; pcol++) {
                 // grayscale images => uchar
                 // patch - image
-                int diff =   prev.at<uchar>(center.y + prow, center.x + pcol)
-                           - next.at<uchar>(center.y + prow, center.x + pcol + col_offset);
+                int diff =   left.at<uchar>(center.y + prow, center.x + pcol)
+                           - right.at<uchar>(center.y + prow, center.x + pcol + col_offset);
 
                 sad  += abs(diff);
             }
@@ -161,7 +161,7 @@ static int matchSAD(const int radius, const Mat& prev, const Mat& next, const Po
 }
 
 
-static int matchCCR(const int radius, const Mat& prev, const Mat& next, const Point2i center,
+static int matchCCR(const int radius, const Mat& left, const Mat& right, const Point2i center,
                       const int max_disparity, bool inverse)
 {
     const int patch_size = 2 * radius + 1;    
@@ -184,14 +184,14 @@ static int matchCCR(const int radius, const Mat& prev, const Mat& next, const Po
     } else {
         search_corner.x = center.x -radius;
 
-        if (search_corner.x + search_width >= next.cols) {
-            search_width = (next.cols - 1) - search_corner.x;
+        if (search_corner.x + search_width >= right.cols) {
+            search_width = (right.cols - 1) - search_corner.x;
         }
     }
 
     // cut off the patch and search area from the image
-    Mat patch       = prev(Rect(center.x - radius, center.y - radius, patch_size,   patch_size));
-    Mat search_area = next(Rect(search_corner.x,   search_corner.y,   search_width, patch_size));
+    Mat patch       = left(Rect(center.x - radius, center.y - radius, patch_size,   patch_size));
+    Mat search_area = right(Rect(search_corner.x,   search_corner.y,   search_width, patch_size));
 
     // perform normed cross correlation matching
     Mat result;
@@ -296,18 +296,18 @@ static void lrcCompensation(Mat& disparity, const Mat& disparity_revert, const u
 }
 
 
-static void stereoMatch(const Mat& img_prev, const Mat& img_next, Mat& disparity,
+static void stereoMatch(const Mat& left, const Mat& right, Mat& disparity,
                                 const int radius, const int max_disparity, const int median_radius,
                                 match_t match_fn, int lrc = -1) 
 {
-    Mat disparity_n2p; // from next to prev (for left right consistency -- LRC)
+    Mat disparity_n2p; // from right to left (for left right consistency -- LRC)
 
-    blockMatch(img_prev, img_next, disparity, radius, max_disparity, match_fn);
+    blockMatch(left, right, disparity, radius, max_disparity, match_fn);
 
     // Left right consistency
     if (lrc > 0) {
         // match in the other direction
-        blockMatch(img_next, img_prev, disparity_n2p, radius, max_disparity, match_fn, true);
+        blockMatch(right, left, disparity_n2p, radius, max_disparity, match_fn, true);
 
         // compute occluded regions and in paint them with the nearest neighbor
         // in the column that is consistent
@@ -324,10 +324,10 @@ static void stereoMatch(const Mat& img_prev, const Mat& img_next, Mat& disparity
 
 int main(int argc, char const *argv[])
 {
-    Mat img_prev;
-    Mat img_next;
-    Mat image;         // img_prev, but loaded with colors
-    Mat disparity;     // from prev to next
+    Mat left;
+    Mat right;
+    Mat image;         // left, but loaded with colors
+    Mat disparity;     // from left to right
     Mat ground_truth;  // optimal disparity map for the image pairs
 
     // parameters
@@ -430,10 +430,10 @@ int main(int argc, char const *argv[])
 
     // parse positional arguments
     if (!parsePositionalImage(image,    CV_LOAD_IMAGE_COLOR,     "frame1", argc, argv)) { return 1; }
-    if (!parsePositionalImage(img_next, CV_LOAD_IMAGE_GRAYSCALE, "frame2", argc, argv)) { return 1; }
+    if (!parsePositionalImage(right, CV_LOAD_IMAGE_GRAYSCALE, "frame2", argc, argv)) { return 1; }
 
     // convert previous image into grayscale
-    cvtColor(image, img_prev, CV_BGR2GRAY);
+    cvtColor(image, left, CV_BGR2GRAY);
 
     cout << "Parameters: " << endl;
     cout << "    radius:        " << radius << endl;
@@ -462,7 +462,7 @@ int main(int argc, char const *argv[])
 
             cout << "block size: " << (2 * var_radius + 1) << endl;
 
-            stereoMatch(img_prev, img_next, disparities[i],
+            stereoMatch(left, right, disparities[i],
                         // parameters
                         var_radius, max_disparity, median_radius, match_fn, lrc_threshold);
 
@@ -471,11 +471,11 @@ int main(int argc, char const *argv[])
         }
 
         // compare different disparities to ground truth and save block size
-        Mat opt_block_size = Mat(img_prev.size(), img_prev.type());
-            disparity      = Mat(img_prev.size(), img_prev.type());
+        Mat opt_block_size = Mat(left.size(), left.type());
+            disparity      = Mat(left.size(), left.type());
 
-        for (int row = 0; row < img_prev.rows; row++) {
-            for (int col = 0; col < img_prev.cols; col++) {
+        for (int row = 0; row < left.rows; row++) {
+            for (int col = 0; col < left.cols; col++) {
                 int smallest_diff = INT_MAX;
                 for (int i = 0; i < steps; i++) {
                     int diff = ground_truth.at<uchar>(row, col) - disparities[i].at<uchar>(row, col);
@@ -498,7 +498,7 @@ int main(int argc, char const *argv[])
         // disparity = disparities[0];
 
     } else {
-        stereoMatch(img_prev, img_next, disparity,
+        stereoMatch(left, right, disparity,
                     // parameters
                     radius, max_disparity, median_radius, match_fn, lrc_threshold);
     }
@@ -513,7 +513,6 @@ int main(int argc, char const *argv[])
 
         return 1;
     }
-
 
     return 0;
 }

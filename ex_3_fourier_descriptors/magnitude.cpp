@@ -6,6 +6,15 @@
 using namespace std;
 using namespace cv;
 
+static void invert(Mat& image)
+{
+    for (int row = 0; row < image.rows; row++) {
+        for (int col = 0; col < image.cols; col++) {
+            image.at<float>(row, col) = 1.0 - image.at<float>(row, col);
+        }
+    }
+}
+
 int main(int argc, char const *argv[])
 {
     if (argc < 2) {
@@ -97,9 +106,20 @@ int main(int argc, char const *argv[])
     // image.
     normalize(magnitude_image, magnitude_image, 0, 1, CV_MINMAX);
 
+    // cout << magnitude_image << endl;
+
+    invert(magnitude_image);
+
     imshow("Input", image);
     imshow("spectrum magnitude", magnitude_image);
-    waitKey(0);
+
+    // wait for ESC key
+    cout << "Press ESC to exit ..." << endl;
+    while (true) {
+        if ((uchar)waitKey(0) == 27) {
+            break;
+        }
+    }
 
     return 0;
 }

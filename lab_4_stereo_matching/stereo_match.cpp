@@ -34,9 +34,10 @@ static void usage()
     cout << "                              sad  sum of absolute differences" << endl;
     cout << "                              ccr  cross correlation" << endl;
     cout << "                          Default: sad" << endl;
-    cout << "    -l, --no-lrc          Disabley left-right-consistency check. Otherwise occluded" << endl;
-    cout << "                          regions are filled by using the nearest neighbor being" << endl;
-    cout << "                          consistent: Default: LRC enabled" << endl;
+    cout << "    -l, --lrc-threshold   Maximal distance in left-right-consistency check." <<  endl;
+    cout << "                          If left and right flow must differ more than this" << endl;
+    cout << "                          parameter, the region is considered as occluded." << endl;
+    cout << "                          If negative, LRC will be disabled. Default: 3" << endl;
 }
 
 
@@ -310,7 +311,10 @@ static void lrcCompensation(Mat& disparity, const Mat& disparity_revert, const u
 
             if (diff > max_diff) {
                 occlusion.at<uchar>(row,col) = 1;
-                // disparity.at<uchar>(row,col) = 0; // optional
+
+                // paint occluded areas black
+                // not needed, but for debugging very useful
+                disparity.at<uchar>(row,col) = 0; // optional
             }
         }
     }
@@ -318,16 +322,16 @@ static void lrcCompensation(Mat& disparity, const Mat& disparity_revert, const u
     // search the nearest neighbor that is not occluded
     for (int row = 0; row < disparity.rows; row++) {
         for (int col = 0; col < disparity.cols; col++) {
-            if (occlusion.at<uchar>(row, col)) {
+            if (occlusion.at<uchar>(row, col) == 1) {
                 // search for the first pixel in the column that is not occluded
                 for (int i = 0; i < disparity.cols / 2; i++) {
                     // search left
-                    if (col - i >= 0 && disparity.at<uchar>(row, col - i) == 0) {
+                    if (col - i >= 0 && occlusion.at<uchar>(row, col - i) == 0) {
                         disparity.at<uchar>(row, col) = disparity.at<uchar>(row, col - i);
                         break;
                     }
                     // search right
-                    if (col + i < disparity.cols && disparity.at<uchar>(row,col + i) == 0) {
+                    if (col + i < disparity.cols && occlusion.at<uchar>(row,col + i) == 0) {
                         disparity.at<uchar>(row, col) = disparity.at<uchar>(row, col + i);
                         break;
                     }
@@ -340,20 +344,20 @@ static void lrcCompensation(Mat& disparity, const Mat& disparity_revert, const u
 
 static void stereoMatch(const Mat& img_prev, const Mat& img_next, Mat& disparity,
                                 const int radius, const int max_disparity, const int median_radius,
-                                match_t match_fn, bool lrc = true) 
+                                match_t match_fn, int lrc = -1) 
 {
     Mat disparity_n2p; // from next to prev (for left right consistency -- LRC)
 
-    blockMatch(img_prev, img_next, disparity,     radius, max_disparity, match_fn);
+    blockMatch(img_prev, img_next, disparity, radius, max_disparity, match_fn);
 
     // Left right consistency
-    if (lrc) {
+    if (lrc > 0) {
         // match in the other direction
         blockMatch(img_next, img_prev, disparity_n2p, radius, max_disparity, match_fn, true);
 
         // compute occluded regions and in paint them with the nearest neighbor
         // in the column that is consistent
-        lrcCompensation(disparity, disparity_n2p, max_disparity);
+        lrcCompensation(disparity, disparity_n2p, lrc);
     }
 
     // you can disable median filtering    
@@ -373,13 +377,13 @@ int main(int argc, char const *argv[])
     Mat ground_truth;  // optimal disparity map for the image pairs
 
     // parameters
-    int radius = 2;
-    int max_disparity = 20;
-    int median_radius = 2;
-    match_t match_fn = &matchSAD;
-    string match_name = "sad";
-    string target = "disparity.png";
-    bool lrc_enabled = true;
+    int radius         = 2;
+    int max_disparity  = 20;
+    int median_radius  = 2;
+    match_t match_fn   = &matchSAD;
+    string match_name  = "sad";
+    string target      = "disparity.png";
+    int lrc_threshold  = 3;
 
     const struct option long_options[] = {
         { "help",           no_argument,       0, 'h' },
@@ -389,7 +393,7 @@ int main(int argc, char const *argv[])
         { "median",         required_argument, 0, 'm' },
         { "ground-truth",   required_argument, 0, 'g' },
         { "correlation",    required_argument, 0, 'c' },
-        { "no-lrc",         no_argument,       0, 'l' },
+        { "lrc-threshold",  required_argument, 0, 'l' },
         0 // end of parameter list
     };
 
@@ -397,7 +401,7 @@ int main(int argc, char const *argv[])
     while (true) {
         int index = -1;
 
-        int result = getopt_long(argc, (char **) argv, "hr:t:d:m:g:c:l", long_options, &index);
+        int result = getopt_long(argc, (char **) argv, "hr:t:d:m:g:c:l:", long_options, &index);
 
         // end of parameter list
         if (result == -1) {
@@ -410,7 +414,7 @@ int main(int argc, char const *argv[])
                 return 0;
 
             case 'l':
-                lrc_enabled = false;
+                lrc_threshold = stoi(string(optarg));
                 break;
 
             case 'r':
@@ -483,7 +487,7 @@ int main(int argc, char const *argv[])
     cout << "    max-disparity: " << max_disparity << endl;
     cout << "    median radius: " << median_radius << endl;
     cout << "    ground truth:  " << ((ground_truth.empty()) ? "true" : "false") << endl;
-    cout << "    LRC:           " << ((lrc_enabled)          ? "true" : "false") << endl;
+    cout << "    LRC threshold: " << lrc_threshold << endl;
     cout << "    target:        " << target << endl;
 
     // find optimal block sizes for each pixel if
@@ -506,7 +510,7 @@ int main(int argc, char const *argv[])
 
             stereoMatch(img_prev, img_next, disparities[i],
                         // parameters
-                        var_radius, max_disparity, median_radius, match_fn, lrc_enabled);
+                        var_radius, max_disparity, median_radius, match_fn, lrc_threshold);
 
             // normalize result to [0, 255]
             normalize(disparities[i], disparities[i], 0, 255, NORM_MINMAX);
@@ -542,7 +546,7 @@ int main(int argc, char const *argv[])
     } else {
         stereoMatch(img_prev, img_next, disparity,
                     // parameters
-                    radius, max_disparity, median_radius, match_fn, lrc_enabled);
+                    radius, max_disparity, median_radius, match_fn, lrc_threshold);
     }
      
     // normalize the result to [ 0, 255 ]

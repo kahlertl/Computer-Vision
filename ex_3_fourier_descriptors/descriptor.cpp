@@ -6,7 +6,28 @@
 using namespace cv;
 using namespace std;
 
-typedef complex<double> complex2d;
+// typedef vector<Point_<<double>>> FourierCoeff;
+// typedef vector<Point_<complex<double>>>[2] FourierCoeff;
+
+typedef vector<complex<double>> FourierCoeff;
+
+typedef struct Fourier2D {
+    FourierCoeff x;
+    FourierCoeff y;
+} Fourier2D;
+
+// class Fourier2D
+// {
+//   public:
+//     FourierCoeff x;
+//     FourierCoeff y;
+
+//     Fourier2D(const int size = 0)
+//     {
+//         x = FourierCoeff(size);
+//         y = FourierCoeff(size);
+//     }
+// };
 
 const char* image_names = {"{1| |fruits.jpg|input image name}"};
 const Scalar red   = {0, 0, 255};
@@ -147,32 +168,72 @@ static void findEquidistantPoints(const vector<Point>& contour, vector<Point2d>&
 }
 
 
-static void calcFourierCoeff(vector<Point2d>& points, vector<Point_<complex2d>>& coeff)
+static void calcFourierCoeff(vector<Point2d>& points, Fourier2D& coeff)
 {
     const int N = points.size();
+
+    // make enough space for all coefficients
+    coeff.x.resize(N);
+    coeff.y.resize(N);
 
     // calculate real and imaginary part of each coefficient
     for (int k = 0; k < N; k++) {
         double a = 0; // real part
         double b = 0; // imaginary part
 
+
+
         // calculate a, b for x
         for (int n = 0; n < N; n++) {
-            a += points[n].x * cos(-2. * M_PI * k * n / N);
-            b += points[n].x * sin(-2. * M_PI * k * n / N);
+            a += points[n].x * cos(2.0 * M_PI * k * n / N);
+            b += points[n].x * sin(2.0 * M_PI * k * n / N);
         }
 
-        coeff[k].x = complex2d(a, b);
+        coeff.x[k] = complex<double>(a, b);
 
         a = 0;
         b = 0;
         // calculate a, b for y
         for (int n = 0; n < N; n++) {
-            a += points[n].y * cos(-2. * M_PI * k * n / N);
-            b += points[n].y * sin(-2. * M_PI * k * n / N);
+            a += points[n].y * cos(2.0 * M_PI * k * n / N);
+            b += points[n].y * sin(2.0 * M_PI * k * n / N);
         }
 
-        coeff[k].y = complex2d(a, b);
+        coeff.y[k] = complex<double>(a, b);
+    }
+}
+
+
+static double calcFourier(const double x, const vector<complex<double>>& coeffs, const double perimeter)
+{
+    double f = coeffs[0].real() / 2.0;
+
+    for (int n = 1; n < coeffs.size(); n++) {
+        f += coeffs[n].real() * cos(2.0 * M_PI * n * x / perimeter) + 
+             coeffs[n].imag() * sin(2.0 * M_PI * n * x / perimeter);
+
+        // result += coefficients[n].first  * cos((n * M_PI * x * 2) / perimeter) + 
+                  // coefficients[n].second * sin((n * M_PI * x * 2) / perimeter);
+    }
+
+    return f;
+}
+
+
+
+static void drawFourier(Mat& image, const Fourier2D& coeff, const int perimeter)
+{
+    Point prev = Point((int) calcFourier(0, coeff.x, perimeter),
+                       (int) calcFourier(0, coeff.y, perimeter));
+
+    for (int i = 1; i < perimeter; i++) {
+        Point point = Point((int) calcFourier(i, coeff.x, perimeter),
+                            (int) calcFourier(i, coeff.y, perimeter));
+
+        // draw line
+        line(image, prev, point, green, 2, 8);
+
+        prev = point;
     }
 }
 
@@ -206,12 +267,17 @@ static void render(int, void*)
         const int counter_length = contours[counter_index].size();
 
         vector<Point2d> equidist_points;
-        findEquidistantPoints(contours[counter_index], equidist_points, num_coeff);
+        findEquidistantPoints(contours[counter_index], equidist_points, num_coeff + 1);
 
         // draw the equidistant points on the contour green
         for (int i = 0; i < equidist_points.size(); i++) {
             circle(colorized, equidist_points[i], 2, green, -1);
         }
+
+        Fourier2D coeffs;
+        calcFourierCoeff(equidist_points, coeffs);
+
+        drawFourier(colorized, coeffs, 100);
     }
 
 

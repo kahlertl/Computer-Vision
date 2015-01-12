@@ -16,19 +16,6 @@ typedef struct Fourier2D {
     FourierCoeff y;
 } Fourier2D;
 
-// class Fourier2D
-// {
-//   public:
-//     FourierCoeff x;
-//     FourierCoeff y;
-
-//     Fourier2D(const int size = 0)
-//     {
-//         x = FourierCoeff(size);
-//         y = FourierCoeff(size);
-//     }
-// };
-
 const char* image_names = {"{1| |fruits.jpg|input image name}"};
 const Scalar red   = {0, 0, 255};
 const Scalar blue  = {255, 0, 0};
@@ -258,8 +245,17 @@ static void render(int, void*)
 
     createBinaryImage(binary);
 
+    if (num_points < 2) {
+        num_points = 2;
+
+        cerr << "Warning! Minimal amount of points is 2" << endl;
+    }
+
     if (num_points < num_coeff) {
         num_coeff = num_points - 1;
+
+        cerr << "Warning! Cannot have more coefficients than points." << endl;
+        cerr << "         Set number of coefficients to number of points." << endl;
     }
 
     // Make a copy of the current grayscale image but expand it to 3 channels.
@@ -287,11 +283,11 @@ static void render(int, void*)
 
         // draw the equidistant points on the contour
         for (int i = 0; i < equidist_points.size(); i++) {
-            circle(colorized, equidist_points[i], 2, white, -1);
+            circle(colorized, equidist_points[i], 2, blue, -1);
         }
 
         Fourier2D coeffs;
-        calcFourierCoeff(equidist_points, coeffs, num_coeff + 1);
+        calcFourierCoeff(equidist_points, coeffs, num_coeff);
 
         drawFourier(colorized, coeffs, 100, green);
     }

@@ -181,14 +181,15 @@ static void calcFourierCoeff(vector<Point2d>& points, Fourier2D& coeff)
         double a = 0; // real part
         double b = 0; // imaginary part
 
-
-
         // calculate a, b for x
         for (int n = 0; n < N; n++) {
             a += points[n].x * cos(2.0 * M_PI * k * n / N);
             b += points[n].x * sin(2.0 * M_PI * k * n / N);
         }
 
+        a = (a * 2) / N;
+        b = (b * 2) / N;
+        
         coeff.x[k] = complex<double>(a, b);
 
         a = 0;
@@ -198,6 +199,9 @@ static void calcFourierCoeff(vector<Point2d>& points, Fourier2D& coeff)
             a += points[n].y * cos(2.0 * M_PI * k * n / N);
             b += points[n].y * sin(2.0 * M_PI * k * n / N);
         }
+
+        a = (a * 2) / N;
+        b = (b * 2) / N;
 
         coeff.y[k] = complex<double>(a, b);
     }
@@ -321,8 +325,8 @@ int main(int argc, char const *argv[])
     // Use a lambda expression to calculate the square maximal distance,
     // because we do not use the square root for better performance.
     // After that, call render directly
-    createTrackbar("color dist", "Shape", &max_dist,  255, [] (int, void*) { max_dist *= max_dist; render(0,0); });
-    createTrackbar("coeff",      "Shape", &num_coeff, 200, render);
+    createTrackbar("color dist", "Shape", &max_dist,   255, [] (int, void*) { max_dist *= max_dist; render(0,0); });
+    createTrackbar("coeff",      "Shape", &num_coeff, 1024, render);
 
     //set the callback function for any mouse event
     setMouseCallback("Input", onMouse, NULL);

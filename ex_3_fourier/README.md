@@ -1,14 +1,21 @@
-# Exercise 3: Fourier transformation
+# Exercise 3: Fourier approximation
 
-Find the position and orientation of the text lines in the image
-[txt.png](txt.png). Solve this problem with Fourier methods. Output: mark each
-of the lines with a red bounding box which has a height of half of the distance
-of the text lines. (2P)
+In your first Exercise you extracted a specific region. Do the same with
+[vertebra](Wirbel.png) to extract the cemented region in the vertebra and
+approximate its contour with a variable (by slider) number of Fourier
+coefficients.
 
-Try to avoid digitalisation problems in the Fourier image to get a more accurate
-line segmentation! (+1P)
+For this you need contour points on equidistant values of an arc length
+parameter (e.g. `s_i = i * L / 1024`).
 
-![Text lines](txt.png)
+Adapt the OpenCV findContours (or the
+method of [Kovalevsky](http://www.kovalevsky.de/Topology/StraightLines_e.htm) )
+to achieve this. (3P)
+
+Creating Fourier descriptors (i.e. making the description size and rotation
+independend). (+1P)
+
+Draw your results in your input image to see how it looks / fits.
 
 
 ## Build
@@ -22,5 +29,5 @@ $ cmake .
 $ make
 
 # Execute program
-$ ./magnitude txt.png
+$ ./shape Wirbel.png
 ```

@@ -66,7 +66,11 @@ static void createBinaryImage(Mat& binary, int max_color_dist)
 
 static int findLargestArea(Mat& search, vector<vector<Point> >& contours, vector<Vec4i>& hierarchy)
 {
-    findContours(search, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE, Point(0,0));
+    // hierachy: [i][0] next
+    //           [i][1] prev
+    //           [i][2] child
+    //           [i][3] parent
+    findContours(search, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_NONE, Point(0,0));
 
     // no contour was found
     if (contours.empty()) {
@@ -88,7 +92,7 @@ static int findLargestArea(Mat& search, vector<vector<Point> >& contours, vector
         // Subtract the area of all holes
         while (child >= 0) {
             area  -= contourArea(contours[child]);
-            child  = hierarchy[child][2];
+            child  = hierarchy[child][0];
         }
 
         // Update maximal area if we found a larger one

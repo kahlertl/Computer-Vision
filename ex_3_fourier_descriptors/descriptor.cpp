@@ -6,8 +6,9 @@ using namespace cv;
 using namespace std;
 
 const char* image_names = {"{1| |fruits.jpg|input image name}"};
-const Scalar red  = {0, 0, 255};
-// const Scalar blue = {255, 0, 0};
+const Scalar red   = {0, 0, 255};
+const Scalar blue  = {255, 0, 0};
+const Scalar green = {0, 255, 0};
 
 // trackbar sliders
 // 
@@ -81,27 +82,55 @@ static int findLargestArea(Mat& search, vector<vector<Point> >& contours, vector
     return max_i;
 }
 
+// static double calcLength(const vector<Point>& contour)
+// {
+//     if (contour.empty) {
+//         return 0;
+//     }
 
-static void findEquidistantPoints(const vector<Point>& contour, vector<Point>& points, const int arc_length)
+//     double length = 0;
+//     Point prev = contour[0];
+
+//     for (int i = 1; i < contour.size(); i++) {
+//         length += sqrt(pow(contour[i].x - prev.x, 2) + pow(contour[i].x - prev.x, 2));
+//     }
+
+//     return length;
+// }
+
+static void findEquidistantPoints(const vector<Point>& contour, vector<Point2d>& points, const int n)
 {
-    Point prev = contour[0];
-    const int sq_arc_length = arc_length * arc_length;
+    const double equidist = arcLength(contour, true) / n;
+    double dist_sum = 0;
+    Point2d prev = { (double) contour[0].x, (double) contour[0].y };
 
-    for (int i = 0; i < contour.size(); i++) {
+    points.push_back(prev);
 
-        // square distance between the previous point an the current one
-        int sqdist =    pow(contour[i].x - prev.x, 2)
-                      + pow(contour[i].y - prev.y, 2);
+    for (int i = 1; i < contour.size(); i++) {
+        // cout << contour[i]  << endl;
 
-        if (i > 0 && contour[i - 1].y == prev.y) {
-            cout << contour[i] << sqdist << endl;
-        }
+        // distance between the previous point an the current one
+        double dist = sqrt(pow(contour[i].x - contour[i - 1].x, 2) +
+                           pow(contour[i].y - contour[i - 1].y, 2));
 
-        if (sqdist > sq_arc_length) {
-            // cout << prev << " - " << contour[i] << " = " << sqdist << endl;
+        dist_sum += dist;
 
-            prev = contour[i];
-            points.push_back(contour[i]);
+        if (dist_sum >= equidist) {
+            dist_sum -= equidist;
+
+            // cout << "dist_sum = " << dist_sum << endl;
+            // cout << "dist = " << dist << endl;
+
+            // cout << (double)(contour[i].x - contour[i - 1].x) << " / " << dist << " * " << (dist - dist_sum) << endl;
+            // cout << (double)(contour[i].y - contour[i - 1].y) << " / " << dist << " * " << (dist - dist_sum) << endl;
+
+            Point2d point;
+            point.x = (double)(contour[i].x - contour[i - 1].x) / dist * (dist - dist_sum) + contour[i - 1].x;
+            point.y = (double)(contour[i].y - contour[i - 1].y) / dist * (dist - dist_sum) + contour[i - 1].y;
+
+            cout << point << endl;
+
+            points.push_back(point);
         }
     }
 }
@@ -128,20 +157,20 @@ static void render(int, void*)
         // Draw largest contour in red to the colorized
         drawContours(colorized, contours, counter_index, red, CV_FILLED, 8, hierarchy);
 
-        for (int i = 0; i < contours[counter_index].size(); i++) {
-            colorized.at<Vec3b>(contours[counter_index][i].y, contours[counter_index][i].x) = {0, 255, 0};
-        }
+        // for (int i = 0; i < contours[counter_index].size(); i++) {
+        //     colorized.at<Vec3b>(contours[counter_index][i].y, contours[counter_index][i].x) = {0, 255, 0};
+        // }
 
         const int counter_length = contours[counter_index].size();
 
-        int arc_length = counter_length / (num_coeff + 2);
-
-        vector<Point> equidist_points;
-        findEquidistantPoints(contours[counter_index], equidist_points, arc_length);
+        vector<Point2d> equidist_points;
+        findEquidistantPoints(contours[counter_index], equidist_points, num_coeff);
 
         // draw the equidistant points on the contour blue
         for (int i = 0; i < equidist_points.size(); i++) {
-            colorized.at<Vec3b>(equidist_points[i].y, equidist_points[i].x) = {255, 0, 0};
+            circle(colorized, equidist_points[i], 2, green, -1);
+
+            // colorized.at<Vec3b>(equidist_points[i].y, equidist_points[i].x) = {255, 0, 0};
         }
     }
 

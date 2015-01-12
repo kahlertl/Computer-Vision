@@ -1,3 +1,9 @@
+/**
+ * Fourier-approximation of shapes
+ *
+ * @author Lucas Kahlert <lucas.kahlert@tu-dresden.de>
+ */
+
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
@@ -23,11 +29,11 @@ const Scalar white = {255, 255, 255};
 int color_threshold = 160;
 
 // number of Fourier coefficients
-int num_coeff = 40;
+int slider_num_coeff = 40;
 
 // number of contour points that will be used
 // to calculate the coefficients
-int num_points = 1024;
+int slider_num_points = 1024;
 
 // pixel selected by user via mouse click
 Vec3b selected_pixel = {227, 252, 255};
@@ -38,6 +44,7 @@ Mat image;
 
 static void createBinaryImage(Mat& binary, int max_color_dist)
 {
+    // reset image
     binary = Mat::zeros(image.size(), CV_8UC1);
 
     // Use square maximal distance to eliminate the usage
@@ -61,13 +68,14 @@ static int findLargestArea(Mat& search, vector<vector<Point> >& contours, vector
 {
     findContours(search, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE, Point(0,0));
 
+    // no contour was found
     if (contours.empty()) {
         return -1;
     }
 
-    double max_area = 0;
+    double area_max = 0;
     // index of the contour with the largest area
-    int max_i = 0;
+    int i_max = 0;
     // index of the current contour we are looking at
     int i = 0;
 
@@ -79,19 +87,20 @@ static int findLargestArea(Mat& search, vector<vector<Point> >& contours, vector
 
         // Subtract the area of all holes
         while (child >= 0) {
-            area -= contourArea(contours[child]);
-            child = hierarchy[child][2];
+            area  -= contourArea(contours[child]);
+            child  = hierarchy[child][2];
         }
 
-        if (max_area < area) {
-            max_area = area;
-            max_i = i;
+        // Update maximal area if we found a larger one
+        if (area_max < area) {
+            area_max = area;
+            i_max = i;
         }
 
         // Go to next contour in the top hierarchy level
         i = hierarchy[i][0];
     }
-    return max_i;
+    return i_max;
 }
 
 
@@ -252,8 +261,9 @@ static void render(int, void*)
 
     createBinaryImage(binary, color_threshold);
 
-    // sanitize parameters
-    // 
+    // copy and sanitize parameters
+    int num_points = slider_num_points;
+    int num_coeff  = slider_num_coeff;    
     // Minimal point number
     if (num_points < 2) {
         num_points = 2;
@@ -296,7 +306,6 @@ static void render(int, void*)
 
         drawFourier(marked, coeffs, 100, green);
     }
-
 
     // Display result
     imshow("Shape", colorized);
@@ -349,8 +358,8 @@ int main(int argc, char const *argv[])
 
     // sliders
     createTrackbar("color dist", "Shape", &color_threshold,    255, render);
-    createTrackbar("coeff",      "Shape", &num_coeff,   200, render);
-    createTrackbar("points",     "Shape", &num_points, 2048, render);
+    createTrackbar("coeff",      "Shape", &slider_num_coeff,   200, render);
+    createTrackbar("points",     "Shape", &slider_num_points, 2048, render);
 
     // set the callback function for any mouse event
     setMouseCallback("Input", onMouse, NULL);

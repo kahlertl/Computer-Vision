@@ -42,9 +42,11 @@ for dir_list in "$PROJECT_DIR/lab_*" "$PROJECT_DIR/exercise_*"; do
         # Go into task directory ...
         cd $dir
 
-        # ... and finally build the task
-        cmake -D OpenCV_DIR=~/opencv/release-$OpenCV_VERSION .
-        make
+        if [ -e "CMakeLists.txt" ]; then
+            # ... and finally build the task
+            cmake -D OpenCV_DIR=~/opencv/release-$OpenCV_VERSION .
+            make
+        fi
     done
 done
 

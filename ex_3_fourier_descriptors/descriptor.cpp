@@ -33,13 +33,16 @@ const char* image_names = {"{1| |fruits.jpg|input image name}"};
 const Scalar red   = {0, 0, 255};
 const Scalar blue  = {255, 0, 0};
 const Scalar green = {0, 255, 0};
+const Scalar white = {255, 255, 255};
 
 // trackbar sliders
 // 
 int max_dist = 75;
 
 // number of Fourier coefficients
-int num_coeff = 75;
+int num_coeff = 1;
+
+int num_points = 1024;
 
 // pixel selected by user via mouse click
 Vec3b selected_pixel = {0, 0, 0};
@@ -168,7 +171,7 @@ static void findEquidistantPoints(const vector<Point>& contour, vector<Point2d>&
 }
 
 
-static void calcFourierCoeff(vector<Point2d>& points, Fourier2D& coeff)
+static void calcFourierCoeff(vector<Point2d>& points, Fourier2D& coeff, const int num_coeff)
 {
     const int N = points.size();
 
@@ -177,7 +180,7 @@ static void calcFourierCoeff(vector<Point2d>& points, Fourier2D& coeff)
     coeff.y.resize(N);
 
     // calculate real and imaginary part of each coefficient
-    for (int k = 0; k < N; k++) {
+    for (int k = 0; k < num_coeff; k++) {
         double a = 0; // real part
         double b = 0; // imaginary part
 
@@ -189,7 +192,7 @@ static void calcFourierCoeff(vector<Point2d>& points, Fourier2D& coeff)
 
         a = (a * 2) / N;
         b = (b * 2) / N;
-        
+
         coeff.x[k] = complex<double>(a, b);
 
         a = 0;
@@ -202,6 +205,9 @@ static void calcFourierCoeff(vector<Point2d>& points, Fourier2D& coeff)
 
         a = (a * 2) / N;
         b = (b * 2) / N;
+
+        // cout << "y: a = " << a << ", b = " << b << endl;
+
 
         coeff.y[k] = complex<double>(a, b);
     }
@@ -225,20 +231,23 @@ static double calcFourier(const double x, const vector<complex<double>>& coeffs,
 
 
 
-static void drawFourier(Mat& image, const Fourier2D& coeff, const int perimeter)
+static void drawFourier(Mat& image, const Fourier2D& coeff, const int perimeter, const Scalar& color)
 {
-    Point prev = Point((int) calcFourier(0, coeff.x, perimeter),
-                       (int) calcFourier(0, coeff.y, perimeter));
+    Point first = Point(calcFourier(0, coeff.x, perimeter),
+                        calcFourier(0, coeff.y, perimeter));
+    Point prev = first;
 
     for (int i = 1; i < perimeter; i++) {
         Point point = Point((int) calcFourier(i, coeff.x, perimeter),
                             (int) calcFourier(i, coeff.y, perimeter));
 
         // draw line
-        line(image, prev, point, green, 2, 8);
+        line(image, prev, point, color, 2, 8);
 
         prev = point;
     }
+
+    line(image, prev, first, color, 2, 8);
 }
 
 
@@ -249,6 +258,9 @@ static void render(int, void*)
 
     createBinaryImage(binary);
 
+    if (num_points < num_coeff) {
+        num_coeff = num_points - 1;
+    }
 
     // Make a copy of the current grayscale image but expand it to 3 channels.
     // This step is required because findContours manipulates the image and
@@ -271,17 +283,17 @@ static void render(int, void*)
         const int counter_length = contours[counter_index].size();
 
         vector<Point2d> equidist_points;
-        findEquidistantPoints(contours[counter_index], equidist_points, num_coeff + 1);
+        findEquidistantPoints(contours[counter_index], equidist_points, num_points);
 
-        // draw the equidistant points on the contour green
+        // draw the equidistant points on the contour
         for (int i = 0; i < equidist_points.size(); i++) {
-            circle(colorized, equidist_points[i], 2, green, -1);
+            circle(colorized, equidist_points[i], 2, white, -1);
         }
 
         Fourier2D coeffs;
-        calcFourierCoeff(equidist_points, coeffs);
+        calcFourierCoeff(equidist_points, coeffs, num_coeff + 1);
 
-        drawFourier(colorized, coeffs, 100);
+        drawFourier(colorized, coeffs, 100, green);
     }
 
 
@@ -321,12 +333,14 @@ int main(int argc, char const *argv[])
     // Create a new windows
     namedWindow("Shape", 1);
     namedWindow("Input", 1);
+    namedWindow("Input", 1);
 
     // Use a lambda expression to calculate the square maximal distance,
     // because we do not use the square root for better performance.
     // After that, call render directly
-    createTrackbar("color dist", "Shape", &max_dist,   255, [] (int, void*) { max_dist *= max_dist; render(0,0); });
-    createTrackbar("coeff",      "Shape", &num_coeff, 1024, render);
+    createTrackbar("color dist", "Shape", &max_dist,    255, [] (int, void*) { max_dist *= max_dist; render(0,0); });
+    createTrackbar("coeff",      "Shape", &num_coeff,   200, render);
+    createTrackbar("points",     "Shape", &num_points, 1024, render);
 
     //set the callback function for any mouse event
     setMouseCallback("Input", onMouse, NULL);

@@ -6,9 +6,6 @@
 using namespace cv;
 using namespace std;
 
-// typedef vector<Point_<<double>>> FourierCoeff;
-// typedef vector<Point_<complex<double>>>[2] FourierCoeff;
-
 typedef vector<complex<double>> FourierCoeff;
 
 typedef struct Fourier2D {
@@ -16,15 +13,14 @@ typedef struct Fourier2D {
     FourierCoeff y;
 } Fourier2D;
 
-const char* image_names = {"{1| |fruits.jpg|input image name}"};
+// Some color definitions
 const Scalar red   = {0, 0, 255};
 const Scalar blue  = {255, 0, 0};
 const Scalar green = {0, 255, 0};
 const Scalar white = {255, 255, 255};
 
-// trackbar sliders
-// 
-int max_dist = 160;
+// maximal color distance
+int color_threshold = 160;
 
 // number of Fourier coefficients
 int num_coeff = 40;
@@ -35,14 +31,10 @@ int num_points = 1024;
 
 // pixel selected by user via mouse click
 Vec3b selected_pixel = {227, 252, 255};
+
+// input image
 Mat image;
 
-inline double distance(const Vec3b& pixel)
-{
-    return pow(selected_pixel[0] - pixel[0], 2) +
-           pow(selected_pixel[1] - pixel[1], 2) +
-           pow(selected_pixel[2] - pixel[2], 2);
-}
 
 static void createBinaryImage(Mat& binary, int max_color_dist)
 {
@@ -103,6 +95,9 @@ static int findLargestArea(Mat& search, vector<vector<Point> >& contours, vector
 }
 
 
+/**
+ * Euclidian distance between to points
+ */
 static inline double dst(const Point& a, const Point& b)
 {
     return sqrt((a.x - b.x) * (a.x - b.x) +
@@ -188,8 +183,10 @@ static void calcFourierCoeff(vector<Point2d>& points, Fourier2D& coeff, const in
 
         coeff.x[k] = complex<double>(a, b);
 
+        // reset
         a = 0;
         b = 0;
+
         // calculate a, b for y
         for (int n = 0; n < N; n++) {
             a += points[n].y * cos(2.0 * M_PI * k * n / N);
@@ -207,32 +204,28 @@ static void calcFourierCoeff(vector<Point2d>& points, Fourier2D& coeff, const in
 }
 
 
-static double calcFourier(const double x, const vector<complex<double>>& coeffs, const double perimeter)
+static double fourierFn(const double x, const vector<complex<double>>& coeffs, const double perimeter)
 {
     double f = coeffs[0].real() / 2.0;
 
     for (int n = 1; n < coeffs.size(); n++) {
         f += coeffs[n].real() * cos(2.0 * M_PI * n * x / perimeter) + 
              coeffs[n].imag() * sin(2.0 * M_PI * n * x / perimeter);
-
-        // result += coefficients[n].first  * cos((n * M_PI * x * 2) / perimeter) + 
-                  // coefficients[n].second * sin((n * M_PI * x * 2) / perimeter);
     }
 
     return f;
 }
 
 
-
 static void drawFourier(Mat& image, const Fourier2D& coeff, const int perimeter, const Scalar& color)
 {
-    Point first = Point(calcFourier(0, coeff.x, perimeter),
-                        calcFourier(0, coeff.y, perimeter));
+    Point first = Point(fourierFn(0, coeff.x, perimeter),
+                        fourierFn(0, coeff.y, perimeter));
     Point prev = first;
 
     for (int i = 1; i < perimeter; i++) {
-        Point point = Point((int) calcFourier(i, coeff.x, perimeter),
-                            (int) calcFourier(i, coeff.y, perimeter));
+        Point point = Point((int) fourierFn(i, coeff.x, perimeter),
+                            (int) fourierFn(i, coeff.y, perimeter));
 
         // draw line
         line(image, prev, point, color, 2, 8);
@@ -240,26 +233,35 @@ static void drawFourier(Mat& image, const Fourier2D& coeff, const int perimeter,
         prev = point;
     }
 
+    // connect first and last point
     line(image, prev, first, color, 2, 8);
 }
 
 
+/**
+ * Handler for all sliders
+ */
 static void render(int, void*)
 {
     // Binary image
     Mat binary;
+
     // original image with approximated shape
     Mat marked;
     image.copyTo(marked);
 
-    createBinaryImage(binary, max_dist);
+    createBinaryImage(binary, color_threshold);
 
+    // sanitize parameters
+    // 
+    // Minimal point number
     if (num_points < 2) {
         num_points = 2;
 
         cerr << "Warning! Minimal amount of points is 2" << endl;
     }
 
+    // we need at least the same number of points as number of coefficients
     if (num_points < num_coeff) {
         num_coeff = num_points - 1;
 
@@ -274,7 +276,7 @@ static void render(int, void*)
     cvtColor(binary, colorized, CV_GRAY2RGB);
     
     vector<Vec4i> hierarchy;
-    vector<vector<Point> > contours;
+    vector<vector<Point>> contours;
     int counter_index = findLargestArea(binary, contours, hierarchy);
 
     if (counter_index >= 0) {
@@ -301,14 +303,18 @@ static void render(int, void*)
     imshow("Input", marked);
 }
 
+
+/**
+ * Mouse click handler
+ */
 static void onMouse(int event, int x, int y, int, void*)
 {
-    // Only listen on left button clicks
+    // only listen on left button clicks
     if (event != EVENT_LBUTTONUP) {
         return;
     }
 
-    // Do not track clicks outside the image
+    // do not track clicks outside the image
     if (x < 0 || y < 0 || x >= image.cols || y >= image.rows) {
         return;
     }
@@ -318,38 +324,42 @@ static void onMouse(int event, int x, int y, int, void*)
     render(0,0);
 }
 
+
 int main(int argc, char const *argv[])
 {
-    CommandLineParser parser(argc, argv, image_names);
-    string filename = parser.get<string>("1");
+    if (argc < 2) {
+        cerr << "Usage: ./shape <image>" << endl;
+
+        return 1;
+    }
+
+    string filename = argv[1];
     image = imread(filename, CV_LOAD_IMAGE_COLOR);
 
     if(image.empty()) {
-        cout << "Cannot read image file:" << filename << endl;
+        cout << "Cannot read image file '" << filename << "'" << endl;
 
-        return -1;
+        return 1;
     }
 
-    // Create a new windows
+    // create a new windows
     namedWindow("Shape", 1);
     namedWindow("Input", 1);
     namedWindow("Input", 1);
 
-    // Use a lambda expression to calculate the square maximal distance,
-    // because we do not use the square root for better performance.
-    // After that, call render directly
-    createTrackbar("color dist", "Shape", &max_dist,    255, render);
+    // sliders
+    createTrackbar("color dist", "Shape", &color_threshold,    255, render);
     createTrackbar("coeff",      "Shape", &num_coeff,   200, render);
     createTrackbar("points",     "Shape", &num_points, 2048, render);
 
-    //set the callback function for any mouse event
+    // set the callback function for any mouse event
     setMouseCallback("Input", onMouse, NULL);
 
-    // Display image
+    // display image
     imshow("Input", image);
     render(0,0);
 
-    // Wait for ESC
+    // wait for ESC
     cout << "Press ESC to exit ..." << endl;
     while (true) {
         // Wait for a key stroke indefinitly

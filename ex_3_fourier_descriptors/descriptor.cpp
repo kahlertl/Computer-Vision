@@ -98,42 +98,66 @@ static int findLargestArea(Mat& search, vector<vector<Point> >& contours, vector
 //     return length;
 // }
 
+static inline double dst(const Point& a, const Point& b)
+{
+    return sqrt((a.x - b.x) * (a.x - b.x) +
+                (a.y - b.y) * (a.y - b.y));
+}
+
+
+/**
+ * Calculates n equidistant points on the given contour. The function uses
+ * subpixel precison.
+ * 
+ * @param contour
+ * @param points  result vector of subpixel precison points
+ * @param n       number of points
+ */
 static void findEquidistantPoints(const vector<Point>& contour, vector<Point2d>& points, const int n)
 {
-    const double equidist = arcLength(contour, true) / n;
-    double dist_sum = 0;
-    Point2d prev = { (double) contour[0].x, (double) contour[0].y };
+    double perimeter = arcLength(contour, true);
 
-    points.push_back(prev);
+    // index of the current contour point
+    int j = 0;
 
-    for (int i = 1; i < contour.size(); i++) {
-        // cout << contour[i]  << endl;
+    // arcus length of the current contour point
+    double arc_len = 0;
+    // arcus length of the previous contour point
+    double arc_len_prev = 0;
 
-        // distance between the previous point an the current one
-        double dist = sqrt(pow(contour[i].x - contour[i - 1].x, 2) +
-                           pow(contour[i].y - contour[i - 1].y, 2));
 
-        dist_sum += dist;
+    for (int i = 0; i < n; i++) {
+        // arcus length of the next equidistant point
+        double arc_len_i = i * perimeter / n;
 
-        if (dist_sum >= equidist) {
-            dist_sum -= equidist;
+        // walk along the contour
+        while (arc_len_i >= arc_len) {
+            // current arc length becomes previous
+            arc_len_prev = arc_len;
 
-            // cout << "dist_sum = " << dist_sum << endl;
-            // cout << "dist = " << dist << endl;
+            // add distance to the next contour point
+            arc_len += dst(contour[j], contour[(j + 1) % contour.size()]);
 
-            // cout << (double)(contour[i].x - contour[i - 1].x) << " / " << dist << " * " << (dist - dist_sum) << endl;
-            // cout << (double)(contour[i].y - contour[i - 1].y) << " / " << dist << " * " << (dist - dist_sum) << endl;
-
-            Point2d point;
-            point.x = (double)(contour[i].x - contour[i - 1].x) / dist * (dist - dist_sum) + contour[i - 1].x;
-            point.y = (double)(contour[i].y - contour[i - 1].y) / dist * (dist - dist_sum) + contour[i - 1].y;
-
-            cout << point << endl;
-
-            points.push_back(point);
+            // update contour index
+            j = (j + 1) % contour.size();
         }
+
+        // normalize vector between current and previous contour point and 
+        // scale it in that way, that it points from the previous contour
+        // point to the current contour point
+        double norm_scale = (arc_len_i - arc_len_prev) / (arc_len - arc_len_prev);
+
+        // index of the previous contour point
+        int j_prev = (j - 1) % contour.size();
+
+        Point2d point;
+        point.x = norm_scale * (contour[j].x - contour[j_prev].x) + contour[j_prev].x;
+        point.y = norm_scale * (contour[j].y - contour[j_prev].y) + contour[j_prev].y;
+
+        points.push_back(point);
     }
 }
+
 
 static void render(int, void*)
 {

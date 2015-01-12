@@ -37,7 +37,7 @@ cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local .. > cmake.
 make > make.log
 
 # Walk through all tasks
-for dir_list in "$PROJECT_DIR/lab_*" "$PROJECT_DIR/exercise_*"; do
+for dir_list in "$PROJECT_DIR/lab_*" "$PROJECT_DIR/ex_*"; do
     for dir in $dir_list; do
         # Go into task directory ...
         cd $dir

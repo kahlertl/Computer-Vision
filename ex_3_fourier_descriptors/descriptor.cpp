@@ -1,9 +1,12 @@
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/highgui/highgui.hpp"
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <iostream>
+#include <complex>
 
 using namespace cv;
 using namespace std;
+
+typedef complex<double> complex2d;
 
 const char* image_names = {"{1| |fruits.jpg|input image name}"};
 const Scalar red   = {0, 0, 255};
@@ -82,21 +85,6 @@ static int findLargestArea(Mat& search, vector<vector<Point> >& contours, vector
     return max_i;
 }
 
-// static double calcLength(const vector<Point>& contour)
-// {
-//     if (contour.empty) {
-//         return 0;
-//     }
-
-//     double length = 0;
-//     Point prev = contour[0];
-
-//     for (int i = 1; i < contour.size(); i++) {
-//         length += sqrt(pow(contour[i].x - prev.x, 2) + pow(contour[i].x - prev.x, 2));
-//     }
-
-//     return length;
-// }
 
 static inline double dst(const Point& a, const Point& b)
 {
@@ -159,6 +147,36 @@ static void findEquidistantPoints(const vector<Point>& contour, vector<Point2d>&
 }
 
 
+static void calcFourierCoeff(vector<Point2d>& points, vector<Point_<complex2d>>& coeff)
+{
+    const int N = points.size();
+
+    // calculate real and imaginary part of each coefficient
+    for (int k = 0; k < N; k++) {
+        double a = 0; // real part
+        double b = 0; // imaginary part
+
+        // calculate a, b for x
+        for (int n = 0; n < N; n++) {
+            a += points[n].x * cos(-2. * M_PI * k * n / N);
+            b += points[n].x * sin(-2. * M_PI * k * n / N);
+        }
+
+        coeff[k].x = complex2d(a, b);
+
+        a = 0;
+        b = 0;
+        // calculate a, b for y
+        for (int n = 0; n < N; n++) {
+            a += points[n].y * cos(-2. * M_PI * k * n / N);
+            b += points[n].y * sin(-2. * M_PI * k * n / N);
+        }
+
+        coeff[k].y = complex2d(a, b);
+    }
+}
+
+
 static void render(int, void*)
 {
     // Binary image
@@ -190,11 +208,9 @@ static void render(int, void*)
         vector<Point2d> equidist_points;
         findEquidistantPoints(contours[counter_index], equidist_points, num_coeff);
 
-        // draw the equidistant points on the contour blue
+        // draw the equidistant points on the contour green
         for (int i = 0; i < equidist_points.size(); i++) {
             circle(colorized, equidist_points[i], 2, green, -1);
-
-            // colorized.at<Vec3b>(equidist_points[i].y, equidist_points[i].x) = {255, 0, 0};
         }
     }
 

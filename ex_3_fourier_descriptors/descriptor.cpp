@@ -24,15 +24,17 @@ const Scalar white = {255, 255, 255};
 
 // trackbar sliders
 // 
-int max_dist = 75;
+int max_dist = 160;
 
 // number of Fourier coefficients
-int num_coeff = 1;
+int num_coeff = 40;
 
+// number of contour points that will be used
+// to calculate the coefficients
 int num_points = 1024;
 
 // pixel selected by user via mouse click
-Vec3b selected_pixel = {0, 0, 0};
+Vec3b selected_pixel = {227, 252, 255};
 Mat image;
 
 inline double distance(const Vec3b& pixel)
@@ -42,9 +44,13 @@ inline double distance(const Vec3b& pixel)
            pow(selected_pixel[2] - pixel[2], 2);
 }
 
-static void createBinaryImage(Mat& binary)
+static void createBinaryImage(Mat& binary, int max_color_dist)
 {
     binary = Mat::zeros(image.size(), CV_8UC1);
+
+    // Use square maximal distance to eliminate the usage
+    // of a square root
+    max_color_dist *= max_color_dist;
 
     for (int y = 0; y < image.rows; ++y) {
         for (int x = 0; x < image.cols; ++x) {
@@ -52,7 +58,7 @@ static void createBinaryImage(Mat& binary)
                        pow(selected_pixel[1] - image.at<Vec3b>(y,x)[1], 2) +
                        pow(selected_pixel[2] - image.at<Vec3b>(y,x)[2], 2);
 
-            if (dist < max_dist) {
+            if (dist < max_color_dist) {
                 binary.at<uchar>(y,x) = 255;
             }
         }
@@ -242,8 +248,11 @@ static void render(int, void*)
 {
     // Binary image
     Mat binary;
+    // original image with approximated shape
+    Mat marked;
+    image.copyTo(marked);
 
-    createBinaryImage(binary);
+    createBinaryImage(binary, max_dist);
 
     if (num_points < 2) {
         num_points = 2;
@@ -272,12 +281,6 @@ static void render(int, void*)
         // Draw largest contour in red to the colorized
         drawContours(colorized, contours, counter_index, red, CV_FILLED, 8, hierarchy);
 
-        // for (int i = 0; i < contours[counter_index].size(); i++) {
-        //     colorized.at<Vec3b>(contours[counter_index][i].y, contours[counter_index][i].x) = {0, 255, 0};
-        // }
-
-        const int counter_length = contours[counter_index].size();
-
         vector<Point2d> equidist_points;
         findEquidistantPoints(contours[counter_index], equidist_points, num_points);
 
@@ -289,12 +292,13 @@ static void render(int, void*)
         Fourier2D coeffs;
         calcFourierCoeff(equidist_points, coeffs, num_coeff);
 
-        drawFourier(colorized, coeffs, 100, green);
+        drawFourier(marked, coeffs, 100, green);
     }
 
 
     // Display result
     imshow("Shape", colorized);
+    imshow("Input", marked);
 }
 
 static void onMouse(int event, int x, int y, int, void*)
@@ -334,9 +338,9 @@ int main(int argc, char const *argv[])
     // Use a lambda expression to calculate the square maximal distance,
     // because we do not use the square root for better performance.
     // After that, call render directly
-    createTrackbar("color dist", "Shape", &max_dist,    255, [] (int, void*) { max_dist *= max_dist; render(0,0); });
+    createTrackbar("color dist", "Shape", &max_dist,    255, render);
     createTrackbar("coeff",      "Shape", &num_coeff,   200, render);
-    createTrackbar("points",     "Shape", &num_points, 1024, render);
+    createTrackbar("points",     "Shape", &num_points, 2048, render);
 
     //set the callback function for any mouse event
     setMouseCallback("Input", onMouse, NULL);

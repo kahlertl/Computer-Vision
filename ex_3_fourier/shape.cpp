@@ -221,7 +221,7 @@ static double fourierFn(const double x, const vector<complex<double>>& coeffs, c
 {
     double f = coeffs[0].real() / 2.0;
 
-    for (int n = 1; n < coeffs.size(); n++) {
+    for (uint n = 1; n < coeffs.size(); n++) {
         f += coeffs[n].real() * cos(2.0 * M_PI * n * x / perimeter) + 
              coeffs[n].imag() * sin(2.0 * M_PI * n * x / perimeter);
     }
@@ -301,7 +301,7 @@ static void render(int, void*)
         findEquidistantPoints(contours[counter_index], equidist_points, num_points);
 
         // draw the equidistant points on the contour
-        for (int i = 0; i < equidist_points.size(); i++) {
+        for (uint i = 0; i < equidist_points.size(); i++) {
             circle(colorized, equidist_points[i], 2, blue, -1);
         }
 

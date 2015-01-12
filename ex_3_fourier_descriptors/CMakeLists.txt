@@ -1,6 +1,0 @@
-cmake_minimum_required(VERSION 2.8)
-project( descriptor )
-find_package( OpenCV REQUIRED )
-add_executable( descriptor descriptor.cpp )
-target_link_libraries( descriptor ${OpenCV_LIBS} )
-set(CMAKE_CXX_FLAGS "-std=c++0x")

@@ -10,8 +10,38 @@ using namespace cv;
 
 static void usage()
 {
-    cout << "Usage: ./stereo_match [options] left right" << endl;
+    cout << "Usage: ./stereo_match [options] left right"                                         << endl
+         << "  options:"                                                                         << endl
+         << "    -h, --help            Show this help message"                                   << endl
+         << "    -w, --window-size     Size of the windows used for stereo matching. Default: 5" << endl
+         << "    -d, --max-disparity   Shrinks the range that will be used"                      << endl
+         << "                          for block matching. Default: 20"                          << endl
+         << "    -t, --target          Name of output file. Default: disparity.png"              << endl
+         << "    -s, --scale-cost      Scaling factor for the cost function for different"       << endl
+         << "                          pixels. Default: 0.075"                                   << endl;
 }
+
+
+static bool parsePositionalImage(Mat& image, const int channels, const string& name, int argc, char const *argv[])
+{
+    if (optind >= argc) {
+        cerr << argv[0] << ": required argument: '" << name << "'" << endl;
+        usage();
+
+        return false;
+    } else {
+        image = imread(argv[optind++], channels);
+
+        if (image.empty()) {
+            cerr << "Error: Cannot read '" << argv[optind] << "'" << endl;
+
+            return false;
+        }
+    }
+
+    return true;
+}
+
 
 
 double matchSSDColor(const Mat& left, const Mat& right,
@@ -52,6 +82,9 @@ void calcDisparity(const Mat& left, const Mat& right, Mat& disparity,
     //    (max value of SSD color match) / max disparity * cost_factor
     //    
     const double cost_scale = 3 * (255.0 * 255.0) * (window_size * window_size) / max_disparity * cost_factor;
+
+    // initialize disparity map matrix as a grayscale image
+    disparity = Mat(left.size(), CV_8UC1);
 
     for (int row = 0; row < left.rows - window_size; row++) {
         cout << "." << flush;
@@ -94,7 +127,6 @@ void calcDisparity(const Mat& left, const Mat& right, Mat& disparity,
                         path_pointers[col][k] = k_prev;
                     }
                 }
-
 
                 double cost = matchSSDColor(left, right, window_size, row, col, col - k) + min;
                 // cout << "min = " << min << ", cost = " << cost << endl;
@@ -144,35 +176,90 @@ int main(int argc, char const *argv[])
     Mat right;
     Mat disparity;
 
-    // Argument parsing
-    if (argc != 3) {
-        usage();
+    // parameters
+    int    window_size    = 5;
+    int    max_disparity  = 15;
+    float  cost_scale     = 0.075;
+    string target         = "disparity.png";
 
-        return 1;
+
+    const struct option long_options[] = {
+        { "help",           no_argument,       0, 'h' },
+        { "window-size",    required_argument, 0, 'w' },
+        { "target",         required_argument, 0, 't' },
+        { "max-disparity",  required_argument, 0, 'd' },
+        { "scale-cost",     required_argument, 0, 's' },
+        0 // end of parameter list
+    };
+
+    // parse command line options
+    while (true) {
+        int index  = -1;
+        int result = getopt_long(argc, (char **) argv, "hw:t:d:s:", long_options, &index);
+
+        // end of parameter list
+        if (result == -1) {
+            break;
+        }
+
+        switch (result) {
+            case 'h':
+                usage();
+                return 0;
+
+            case 'w':
+                window_size = stoi(string(optarg));
+                if (window_size < 0) {
+                    cerr << argv[0] << ": Invalid window_size: " << optarg << endl;
+                    return 1;
+                }
+                break;
+
+            case 'd':
+                max_disparity = stoi(string(optarg));
+                if (max_disparity <= 0) {
+                    cerr << argv[0] << ": Invalid maximal disparity: " << optarg << endl;
+                    return 1;
+                }
+                break;
+
+            case 't':
+                target = optarg;
+                break;
+
+            case 's':
+                cost_scale = stof(string(optarg));
+                if (cost_scale <= 0) {
+                    cerr << argv[0] << ": Invalid scale factor for cost function: " << optarg << endl;
+                    return 1;
+                }
+                break;
+
+           case '?': // missing option
+                return 1;
+
+            default: // unknown
+                cerr << "unknown parameter: " << optarg << endl;
+                break;
+        }
     }
 
-    left  = imread(argv[1], CV_LOAD_IMAGE_COLOR);
-    right = imread(argv[2], CV_LOAD_IMAGE_COLOR);
+    // parse positional arguments
+    if (!parsePositionalImage(left,  CV_LOAD_IMAGE_COLOR, "left",  argc, argv)) { return 1; }
+    if (!parsePositionalImage(right, CV_LOAD_IMAGE_COLOR, "right", argc, argv)) { return 1; }
 
-    if (left.empty()) {
-        cerr << "Cannot read the left image: " << argv[1] << endl;
+    calcDisparity(left, right, disparity, window_size, max_disparity, cost_scale);
 
-        return 1;
-    }
-
-    if (right.empty()) {
-        cerr << "Cannot read the right image: " << argv[2] << endl;
-
-        return 1;
-    }
-
-    disparity = Mat(left.size(), CV_8UC1);
-
-    calcDisparity(left, right, disparity, 5, 15, 0.075);
-
+    // normalize disparity to a regular grayscale image
     normalize(disparity, disparity, 0, 255, NORM_MINMAX);
-    imshow("Disparity", disparity);
-    waitKey(0);
+
+    try {
+        imwrite(target, disparity);
+    } catch (runtime_error& ex) {
+        cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
+
+        return 1;
+    }
 
     return 0;
 }

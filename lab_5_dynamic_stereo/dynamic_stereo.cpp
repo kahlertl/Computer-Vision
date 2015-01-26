@@ -45,8 +45,14 @@ int transitionCost(const int x, const int y)
 
 
 void calcDisparity(const Mat& left, const Mat& right, Mat& disparity,
-                    const int window_size, const int max_disparity)
+                    const int window_size, const int max_disparity, const double cost_factor)
 {
+    // scale cost function:
+    // 
+    //    (max value of SSD color match) / max disparity * cost_factor
+    //    
+    const double cost_scale = 3 * (255.0 * 255.0) * (window_size * window_size) / max_disparity * cost_factor;
+
     for (int row = 0; row < left.rows - window_size; row++) {
         cout << "." << flush;
         
@@ -76,8 +82,7 @@ void calcDisparity(const Mat& left, const Mat& right, Mat& disparity,
 
                     // cout << "transitionCost = " << transitionCost(k, k_prev) << endl;
 
-                    double cost = costs_prev[k_prev] + 
-                                  3 * (255.0 * 255.0) * (window_size * window_size) / 15.0 * transitionCost(k, k_prev);
+                    double cost = costs_prev[k_prev] + cost_scale * transitionCost(k, k_prev);
 
 
 
@@ -163,7 +168,7 @@ int main(int argc, char const *argv[])
 
     disparity = Mat(left.size(), CV_8UC1);
 
-    calcDisparity(left, right, disparity, 5, 15);
+    calcDisparity(left, right, disparity, 5, 15, 0.075);
 
     normalize(disparity, disparity, 0, 255, NORM_MINMAX);
     imshow("Disparity", disparity);

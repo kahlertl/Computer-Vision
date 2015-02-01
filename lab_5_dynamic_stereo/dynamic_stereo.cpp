@@ -19,8 +19,78 @@ typedef struct Node {
     Node() : parent(none), children { none, none, none } { };
 } Node;
 
-typedef std::vector<Node> Tree; 
+class Tree
+{
+    const Mat& image;
+    std::vector<Node> nodes;
 
+  public:
+    Tree(Mat& image) : image(image)
+    {
+        const int middle = image.cols / 2;
+
+        // initialize tree hierarchy with number of elements in the image matrix
+        nodes = vector<Node>(image.rows * image.cols);
+
+        // generate grid spanning tree
+        for (int row = 0; row < image.rows; row++) {
+            for (int col = 0; col < image.cols; col++) {
+                // const int i = row * image.cols + col;
+                Node node;
+                
+                // left
+                if (col < middle) {
+                    node.parent   = row * image.cols + col + 1; // node to the right is parent
+                    // node to the left
+                    if (col > 0) {
+                        node.children[0] = row * image.cols + col - 1;
+                    }
+                }
+                // middle
+                else if (col == middle) {
+                    if (row > 0) {
+                        node.parent = (row - 1) * image.cols + col;
+                    }
+                    // left and right child nodes
+                    node.children[0] = row * image.cols + col - 1;
+                    node.children[2] = row * image.cols + col + 1;
+                    // check if the node below exists
+                    if (row + 1 < image.rows) {
+                        node.children[1] = (row + 1) * image.cols + col;
+                    }
+                }
+                // right 
+                else {
+                    node.parent = row * image.cols + col - 1;
+
+                    // node the the right is child
+                    if (col + 1 < image.cols) {
+                        node.children[2] = row * image.cols + col + 1;
+                    }
+                }
+
+                nodes[row * image.cols + col] = node;
+            }
+        }
+    }
+
+    // ~Tree() {};
+
+    friend ostream& operator<<(ostream& os, const Tree& tree);
+};
+
+ostream& operator<<(ostream& os, const Tree& tree)
+{
+    for (int i = 0; i < tree.nodes.size(); i++) {
+        os << setw(2) << i << ": ";
+        os << setw(3) << tree.nodes[i].parent << " | ";
+        os << setw(2) << tree.nodes[i].children[0] << " ";
+        os << setw(2) << tree.nodes[i].children[1] << " ";
+        os << setw(2) << tree.nodes[i].children[2] << endl;
+    }
+
+    return os;
+}
 
 static void usage()
 {
@@ -184,57 +254,6 @@ void calcDisparity(const Mat& left, const Mat& right, Mat& disparity,
 }
 
 
-void createTree(const Mat& image, Tree& tree)
-{
-    const int middle = image.cols / 2;
-
-    // initialize tree hierarchy with number of elements in the image matrix
-    tree.resize(image.rows * image.cols);
-
-
-    for (int row = 0; row < image.rows; row++) {
-        for (int col = 0; col < image.cols; col++) {
-            // const int i = row * image.cols + col;
-            Node node;
-            
-            // left
-            if (col < middle) {
-                node.parent   = row * image.cols + col + 1; // node to the right is parent
-                // node to the left
-                if (col > 0) {
-                    node.children[0] = row * image.cols + col - 1;
-                }
-            }
-            // middle
-            else if (col == middle) {
-                if (row > 0) {
-                    node.parent = (row - 1) * image.cols + col;
-                }
-                // left and right child nodes
-                node.children[0] = row * image.cols + col - 1;
-                node.children[2] = row * image.cols + col + 1;
-                // check if the node below exists
-                if (row + 1 < image.rows) {
-                    node.children[1] = (row + 1) * image.cols + col;
-                }
-            }
-            // right 
-            else {
-                node.parent = row * image.cols + col - 1;
-
-                // node the the right is child
-                if (col + 1 < image.cols) {
-                    node.children[2] = row * image.cols + col + 1;
-                }
-            }
-
-            tree[row * image.cols + col] = node;
-        }
-    }
-
-}
-
-
 int main(int argc, char const *argv[])
 {
     Mat left;
@@ -320,21 +339,8 @@ int main(int argc, char const *argv[])
     if (!parsePositionalImage(left,  CV_LOAD_IMAGE_COLOR, "left",  argc, argv)) { return 1; }
     // if (!parsePositionalImage(right, CV_LOAD_IMAGE_COLOR, "right", argc, argv)) { return 1; }
 
-    Tree tree;
-    createTree(left, tree);
-
-
-    cout << tree.size() << endl;
-
-    for (int i = 0; i < tree.size(); i++) {
-        cout << setw(2) << i << ": ";
-        cout << setw(3) << tree[i].parent << " | ";
-        cout << setw(2) << tree[i].children[0] << " ";
-        cout << setw(2) << tree[i].children[1] << " ";
-        cout << setw(2) << tree[i].children[2] << endl;
-    }
-
-    // cout << tree << cout;
+    Tree tree(left);
+    cout << tree;
 
     // calcDisparity(left, right, disparity, window_size, max_disparity, cost_scale);
 

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>  // std::setw
 #include <getopt.h> // getopt_long()
 #include <limits>   // numeric_limits
 
@@ -7,6 +8,19 @@
 
 using namespace std;
 using namespace cv;
+
+static const int none = -1;
+
+typedef struct Node {
+    int parent;
+    int children[3]; // left, middle, right
+
+    // initialize all node indices with none
+    Node() : parent(none), children { none, none, none } { };
+} Node;
+
+typedef std::vector<Node> Tree; 
+
 
 static void usage()
 {
@@ -170,6 +184,57 @@ void calcDisparity(const Mat& left, const Mat& right, Mat& disparity,
 }
 
 
+void createTree(const Mat& image, Tree& tree)
+{
+    const int middle = image.cols / 2;
+
+    // initialize tree hierarchy with number of elements in the image matrix
+    tree.resize(image.rows * image.cols);
+
+
+    for (int row = 0; row < image.rows; row++) {
+        for (int col = 0; col < image.cols; col++) {
+            // const int i = row * image.cols + col;
+            Node node;
+            
+            // left
+            if (col < middle) {
+                node.parent   = row * image.cols + col + 1; // node to the right is parent
+                // node to the left
+                if (col > 0) {
+                    node.children[0] = row * image.cols + col - 1;
+                }
+            }
+            // middle
+            else if (col == middle) {
+                if (row > 0) {
+                    node.parent = (row - 1) * image.cols + col;
+                }
+                // left and right child nodes
+                node.children[0] = row * image.cols + col - 1;
+                node.children[2] = row * image.cols + col + 1;
+                // check if the node below exists
+                if (row + 1 < image.rows) {
+                    node.children[1] = (row + 1) * image.cols + col;
+                }
+            }
+            // right 
+            else {
+                node.parent = row * image.cols + col - 1;
+
+                // node the the right is child
+                if (col + 1 < image.cols) {
+                    node.children[2] = row * image.cols + col + 1;
+                }
+            }
+
+            tree[row * image.cols + col] = node;
+        }
+    }
+
+}
+
+
 int main(int argc, char const *argv[])
 {
     Mat left;
@@ -203,10 +268,12 @@ int main(int argc, char const *argv[])
         }
 
         switch (result) {
+            // help
             case 'h':
                 usage();
                 return 0;
 
+            // windows size
             case 'w':
                 window_size = stoi(string(optarg));
                 if (window_size < 0) {
@@ -215,6 +282,7 @@ int main(int argc, char const *argv[])
                 }
                 break;
 
+            // maximal disparity
             case 'd':
                 max_disparity = stoi(string(optarg));
                 if (max_disparity <= 0) {
@@ -223,10 +291,12 @@ int main(int argc, char const *argv[])
                 }
                 break;
 
+            // target - filename of the output disparity map
             case 't':
                 target = optarg;
                 break;
 
+            // scale factor of the cost function
             case 's':
                 cost_scale = stof(string(optarg));
                 if (cost_scale <= 0) {
@@ -235,10 +305,12 @@ int main(int argc, char const *argv[])
                 }
                 break;
 
-           case '?': // missing option
+           // missing option
+           case '?':
                 return 1;
 
-            default: // unknown
+            // unknown
+            default:
                 cerr << "unknown parameter: " << optarg << endl;
                 break;
         }
@@ -246,20 +318,36 @@ int main(int argc, char const *argv[])
 
     // parse positional arguments
     if (!parsePositionalImage(left,  CV_LOAD_IMAGE_COLOR, "left",  argc, argv)) { return 1; }
-    if (!parsePositionalImage(right, CV_LOAD_IMAGE_COLOR, "right", argc, argv)) { return 1; }
+    // if (!parsePositionalImage(right, CV_LOAD_IMAGE_COLOR, "right", argc, argv)) { return 1; }
 
-    calcDisparity(left, right, disparity, window_size, max_disparity, cost_scale);
+    Tree tree;
+    createTree(left, tree);
 
-    // normalize disparity to a regular grayscale image
-    normalize(disparity, disparity, 0, 255, NORM_MINMAX);
 
-    try {
-        imwrite(target, disparity);
-    } catch (runtime_error& ex) {
-        cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
+    cout << tree.size() << endl;
 
-        return 1;
+    for (int i = 0; i < tree.size(); i++) {
+        cout << setw(2) << i << ": ";
+        cout << setw(3) << tree[i].parent << " | ";
+        cout << setw(2) << tree[i].children[0] << " ";
+        cout << setw(2) << tree[i].children[1] << " ";
+        cout << setw(2) << tree[i].children[2] << endl;
     }
+
+    // cout << tree << cout;
+
+    // calcDisparity(left, right, disparity, window_size, max_disparity, cost_scale);
+
+    // // normalize disparity to a regular grayscale image
+    // normalize(disparity, disparity, 0, 255, NORM_MINMAX);
+
+    // try {
+    //     imwrite(target, disparity);
+    // } catch (runtime_error& ex) {
+    //     cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
+
+    //     return 1;
+    // }
 
     return 0;
 }

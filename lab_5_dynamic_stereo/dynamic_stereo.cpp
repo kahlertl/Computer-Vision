@@ -4,6 +4,7 @@
 #include <getopt.h> // getopt_long()
 #include <limits>   // numeric_limits
 #include <assert.h> // assert
+#include <tuple>    // std::tuple, std::tie
 
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -11,11 +12,17 @@
 using namespace std;
 using namespace cv;
 
+// neat shortcut for node indices representing a none existent
+// node reference
 static const int none = -1;
 
 
-
-typedef struct Node {
+/**
+ * Very simple and small node implementation that is used in used by the Tree
+ * class below.
+ */
+typedef struct Node
+{
     int parent;
     int children[3]; // left, middle, right
 
@@ -36,6 +43,43 @@ typedef struct Node {
     }
 } Node;
 
+/**
+ * A simple class that represents the tree used for the Markov tree. The tree
+ * is represented as a list of nodes, where the index of a node is the running
+ * number in the matrix:
+ *
+ *     --------------------------
+ *     |  0 |  1 |  2 |  3 |  4 |
+ *     --------------------------
+ *     |  5 |  6 |  7 |  8 |  9 |
+ *     --------------------------
+ *     | 10 | 11 | 12 | 13 | 14 |
+ *     --------------------------
+ *     | 15 | 16 | 17 | 18 | 19 |
+ *     --------------------------
+ *     | 20 | 21 | 22 | 23 | 24 |
+ *     --------------------------
+ *
+ * The nodes holds the indices of their parent or child nodes. You can
+ * map an index bijective to the related (row,col) tuple:
+ *
+ *     row = i / grid_width
+ *     col = i % grid_width
+ * 
+ * The tree has the following structure:
+ *
+
+ *    ○--○--○--○--○
+ *          |
+ *    ○--○--○--○--○
+ *          |
+ *    ○--○--○--○--○
+ *          |
+ *    ○--○--○--○--○
+ *          |
+ *    ○--○--○--○--○
+ * 
+ */
 class Tree
 {
   public:
@@ -120,13 +164,15 @@ class Tree
         }
     };
 
-    inline const Node& operator[] (const int i) const { return nodes[i]; }
-    inline       Node& operator[] (const int i)       { return nodes[i]; }
+    // some neat shortcuts
+    inline const Node& operator[] (const int i) const { return nodes[i];     }
+    inline       Node& operator[] (const int i)       { return nodes[i];     }
+    inline const int   size()                         { return nodes.size(); }
 
     /**
      * Descide for a node if all child nodes have already be calculated.
      * 
-     * @return [description]
+     * @return true if the costs for all child nodes are already calculated
      */
     inline bool canCalculate(int i)
     {
@@ -138,8 +184,6 @@ class Tree
 
         return true;
     }
-
-    friend ostream& operator<<(ostream& os, const Tree& tree);
 };
 
 
@@ -157,6 +201,22 @@ ostream& operator<<(ostream& os, const Tree& tree)
 }
 
 
+/**
+ * The tree is stored as a list. The nodes have stores the specific indices of their parent or child nodes.
+ * You can convert an index back into an (row, col) if you now the image width and the window size.
+ *
+ * The windows size is important, because we crop a vertical strip on the left side of the image. This
+ * is required because we use block matching.
+ */
+inline tuple<int, int> convertIndex(const int index, const int image_width, const int window_size)
+{
+    return make_tuple(
+        index / (image_width - window_size),              // row
+        index % (image_width - window_size) + window_size // col
+    );
+}
+
+
 static void usage()
 {
     cout << "Usage: ./stereo_match [options] left right"                                         << endl
@@ -165,9 +225,14 @@ static void usage()
          << "    -w, --window-size     Size of the windows used for stereo matching. Default: 5" << endl
          << "    -d, --max-disparity   Shrinks the range that will be used"                      << endl
          << "                          for block matching. Default: 20"                          << endl
-         << "    -t, --target          Name of output file. Default: disparity.png"              << endl
+         << "    -o, --output          Name of output file. Default: disparity.png"              << endl
          << "    -s, --scale-cost      Scaling factor for the cost function for different"       << endl
-         << "                          pixels. Default: 0.075"                                   << endl;
+         << "                          pixels. Default: 0.075"                                   << endl
+         << "    -t, --topology        Defines the topology that is used for the Markov model."  << endl
+         << "                          Available:"                                               << endl
+         << "                              - tree"                                               << endl
+         << "                              - line"                                               << endl
+         << "                          Default: tree"                                            << endl;
 }
 
 
@@ -223,8 +288,8 @@ int transitionCost(const int x, const int y)
 }
 
 
-void calcDisparity(const Mat& left, const Mat& right, Mat& disparity,
-                    const int window_size, const int max_disparity, const double cost_factor)
+void calcDisparityLine(const Mat& left, const Mat& right, Mat& disparity,
+                       const int window_size, const int max_disparity, const double cost_factor)
 {
     // scale cost function:
     // 
@@ -319,8 +384,8 @@ void calcDisparity(const Mat& left, const Mat& right, Mat& disparity,
 }
 
 
-void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity,
-                   const int window_size, const int max_disparity, const double cost_factor)
+void calcDisparityTree(const Mat& left, const Mat& right, Tree& tree, Mat& disparity,
+                       const int window_size, const int max_disparity, const double cost_factor)
 {
     // scale cost function:
     // 
@@ -332,7 +397,7 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
     disparity = Mat(left.size(), CV_8UC1);
 
 
-    vector<vector<int>> path_pointers(tree.nodes.size(), vector<int>(max_disparity));
+    vector<vector<int>> path_pointers(tree.size(), vector<int>(max_disparity));
 
     // Stores the cost of the path to each previous nodes
     // We cannot write the costs directly back into the costs_prev vector
@@ -351,7 +416,7 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
         // cout << "leaf (" << row << "," << col << ")" << endl;
 
         // initialize costs for the leaf with 0
-        Node& node = tree.nodes[tree.leafs[i]];
+        Node& node = tree[tree.leafs[i]];
         node.costs = new vector<double>(max_disparity, 0);
 
         // index of the parent node of the leaf
@@ -372,9 +437,9 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
         const int i = node_stack.top();
         node_stack.pop();
 
-        Node& node = tree.nodes[i];
-        int row    = i / (left.cols - window_size);
-        int col    = i % (left.cols - window_size) + window_size;
+        Node& node = tree[i];
+        int row, col;
+        tie(row, col) = convertIndex(i, left.cols, window_size);
         
         // where to go?
         // cout << setw(2) << i << ": (" << row << "," << col << ")" <<  endl;
@@ -485,22 +550,24 @@ int main(int argc, char const *argv[])
     int    window_size    = 5;
     int    max_disparity  = 15;
     float  cost_scale     = 0.075;
-    string target         = "disparity.png";
+    string topology       = "tree";
+    string output         = "disparity.png";
 
 
     const struct option long_options[] = {
         { "help",           no_argument,       0, 'h' },
         { "window-size",    required_argument, 0, 'w' },
-        { "target",         required_argument, 0, 't' },
+        { "output",         required_argument, 0, 'o' },
         { "max-disparity",  required_argument, 0, 'd' },
         { "scale-cost",     required_argument, 0, 's' },
+        { "topology",       required_argument, 0, 't' },
         0 // end of parameter list
     };
 
     // parse command line options
     while (true) {
         int index  = -1;
-        int result = getopt_long(argc, (char **) argv, "hw:t:d:s:", long_options, &index);
+        int result = getopt_long(argc, (char **) argv, "hw:o:d:s:t:", long_options, &index);
 
         // end of parameter list
         if (result == -1) {
@@ -531,9 +598,9 @@ int main(int argc, char const *argv[])
                 }
                 break;
 
-            // target - filename of the output disparity map
-            case 't':
-                target = optarg;
+            // output - filename of the output disparity map
+            case 'o':
+                output = optarg;
                 break;
 
             // scale factor of the cost function
@@ -543,6 +610,16 @@ int main(int argc, char const *argv[])
                     cerr << argv[0] << ": Invalid scale factor for cost function: " << optarg << endl;
                     return 1;
                 }
+                break;
+
+            // topology
+            case 't':
+                topology = string(optarg);
+                if (topology != "tree" && topology != "line") {
+                    cerr << argv[0] << ": Invalid topology: " << optarg << endl;
+                    return 1;
+                }
+
                 break;
 
            // missing option
@@ -571,20 +648,24 @@ int main(int argc, char const *argv[])
         return 1;
     }
 
+    if (topology == "tree") {
+        Tree tree(left.rows - window_size, left.cols - window_size);
+        calcDisparityTree(left, right, tree, disparity, window_size, max_disparity, cost_scale);
+    } else { // topology == "line"
+        calcDisparityLine(left, right, disparity, window_size, max_disparity, cost_scale);
+    }
 
-    Tree tree(left.rows - window_size, left.cols - window_size);
+
     // cout << tree;
 
-    // calcDisparity(left, right, disparity, window_size, max_disparity, cost_scale);
-    calcDisparity(left, right, tree, disparity, window_size, max_disparity, cost_scale);
 
     // normalize disparity to a regular grayscale image
     normalize(disparity, disparity, 0, 255, NORM_MINMAX);
 
     try {
-        imwrite(target, disparity);
+        imwrite(output, disparity);
     } catch (runtime_error& ex) {
-        cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
+        cerr << "Error: cannot save disparity map to '" << output << "'" << endl;
 
         return 1;
     }

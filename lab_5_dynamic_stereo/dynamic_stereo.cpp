@@ -16,6 +16,8 @@ using namespace cv;
 // node reference
 static const int none = -1;
 
+// signature of all cost functions
+typedef int (*cost_t)(const int a, const int b);
 
 /**
  * Very simple and small node implementation that is used in used by the Tree
@@ -228,8 +230,14 @@ static void usage()
          << "    -o, --output          Name of output file. Default: disparity.png"              << endl
          << "    -s, --scale-cost      Scaling factor for the cost function for different"       << endl
          << "                          pixels. Default: 0.075"                                   << endl
+         << "    -c, --cost            Cost function for the transition of two disparity values" << endl
+         << "                            Available:"                                             << endl
+         << "                              - potts"                                              << endl
+         << "                              - abs_diff"                                           << endl
+         << "                              - square_diff"                                        << endl
+         << "                          Default: abs_diff"                                        << endl
          << "    -t, --topology        Defines the topology that is used for the Markov model."  << endl
-         << "                          Available:"                                               << endl
+         << "                            Available:"                                             << endl
          << "                              - tree"                                               << endl
          << "                              - line"                                               << endl
          << "                          Default: tree"                                            << endl;
@@ -282,14 +290,13 @@ double matchSSDColor(const Mat& left, const Mat& right,
 }
 
 
-int transitionCost(const int x, const int y)
-{
-    return abs(x - y);
-}
+int potts_cost  (const int x, const int y) { return (x != y) ? 1 : 0;  }
+int abs_diff    (const int x, const int y) { return abs(x - y);        }
+int square_diff (const int x, const int y) { return (x - y) * (x - y); }
 
 
 void calcDisparityLine(const Mat& left, const Mat& right, Mat& disparity,
-                       const int window_size, const int max_disparity, const double cost_factor)
+                       const int window_size, const int max_disparity, cost_t cost_fn, const double cost_factor)
 {
     // scale cost function:
     // 
@@ -327,11 +334,7 @@ void calcDisparityLine(const Mat& left, const Mat& right, Mat& disparity,
                 for (int k_prev = 0; k_prev < max_disparity; k_prev++) {
                     // cout << "k_prev = " << k_prev << endl;
 
-                    // cout << "transitionCost = " << transitionCost(k, k_prev) << endl;
-
-                    double cost = costs_prev[k_prev] + cost_scale * transitionCost(k, k_prev);
-
-
+                    double cost = costs_prev[k_prev] + cost_scale * cost_fn(k, k_prev);
 
                     // a better minimum was found
                     if (cost < min) {
@@ -385,7 +388,7 @@ void calcDisparityLine(const Mat& left, const Mat& right, Mat& disparity,
 
 
 void calcDisparityTree(const Mat& left, const Mat& right, Tree& tree, Mat& disparity,
-                       const int window_size, const int max_disparity, const double cost_factor)
+                       const int window_size, const int max_disparity, cost_t cost_fn, const double cost_factor)
 {
     // scale cost function:
     // 
@@ -458,10 +461,11 @@ void calcDisparityTree(const Mat& left, const Mat& right, Tree& tree, Mat& dispa
             for (int k_prev = 0; k_prev < max_disparity; k_prev++) {
 
                 // sum up costs of all child nodes
-                double cost_prev = 0;
-                if (node.children[0] != none) { cost_prev += (*tree[node.children[0]].costs)[k_prev] + cost_scale * transitionCost(k, k_prev); }
-                if (node.children[1] != none) { cost_prev += (*tree[node.children[1]].costs)[k_prev] + cost_scale * transitionCost(k, k_prev); }
-                if (node.children[2] != none) { cost_prev += (*tree[node.children[2]].costs)[k_prev] + cost_scale * transitionCost(k, k_prev); }
+                double cost_prev  = 0;
+                double trans_cost = cost_scale * cost_fn(k, k_prev);
+                if (node.children[0] != none) { cost_prev += (*tree[node.children[0]].costs)[k_prev] + trans_cost; }
+                if (node.children[1] != none) { cost_prev += (*tree[node.children[1]].costs)[k_prev] + trans_cost; }
+                if (node.children[2] != none) { cost_prev += (*tree[node.children[2]].costs)[k_prev] + trans_cost; }
 
                 // a "better" minimum was found
                 if (cost_prev < min) {
@@ -552,7 +556,8 @@ int main(int argc, char const *argv[])
     float  cost_scale     = 0.075;
     string topology       = "tree";
     string output         = "disparity.png";
-
+    string cost_fn_name   = "abs_diff";
+    cost_t cost_fn        = &abs_diff;
 
     const struct option long_options[] = {
         { "help",           no_argument,       0, 'h' },
@@ -561,13 +566,14 @@ int main(int argc, char const *argv[])
         { "max-disparity",  required_argument, 0, 'd' },
         { "scale-cost",     required_argument, 0, 's' },
         { "topology",       required_argument, 0, 't' },
+        { "cost",           required_argument, 0, 'c' },
         0 // end of parameter list
     };
 
     // parse command line options
     while (true) {
         int index  = -1;
-        int result = getopt_long(argc, (char **) argv, "hw:o:d:s:t:", long_options, &index);
+        int result = getopt_long(argc, (char **) argv, "hw:o:d:s:t:c:", long_options, &index);
 
         // end of parameter list
         if (result == -1) {
@@ -612,6 +618,19 @@ int main(int argc, char const *argv[])
                 }
                 break;
 
+            // cost function for transitions
+            case 'c':
+                cost_fn_name = string(optarg);
+                if      (cost_fn_name == "potts")       { cost_fn = &potts_cost;  }
+                else if (cost_fn_name == "abs_diff")    { cost_fn = &abs_diff;    }
+                else if (cost_fn_name == "square_diff") { cost_fn = &square_diff; }
+                else {
+                    cerr << argv[0] << ": Invalid cost function: " << optarg << endl;
+                    return 1;
+                }
+
+                break;
+
             // topology
             case 't':
                 topology = string(optarg);
@@ -650,9 +669,9 @@ int main(int argc, char const *argv[])
 
     if (topology == "tree") {
         Tree tree(left.rows - window_size, left.cols - window_size);
-        calcDisparityTree(left, right, tree, disparity, window_size, max_disparity, cost_scale);
+        calcDisparityTree(left, right, tree, disparity, window_size, max_disparity, cost_fn, cost_scale);
     } else { // topology == "line"
-        calcDisparityLine(left, right, disparity, window_size, max_disparity, cost_scale);
+        calcDisparityLine(left, right, disparity, window_size, max_disparity, cost_fn, cost_scale);
     }
 
 

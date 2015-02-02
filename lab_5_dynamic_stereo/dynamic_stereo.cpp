@@ -308,7 +308,7 @@ void calcDisparityLine(const Mat& left, const Mat& right, Mat& disparity,
     disparity = Mat(left.size(), CV_8UC1);
 
     for (int row = 0; row < left.rows - window_size; row++) {
-        cout << "." << flush;
+        cout << "." << flush; // progress bar
         
         vector<vector<int>> path_pointers(left.cols, vector<int>(max_disparity));
 
@@ -323,46 +323,24 @@ void calcDisparityLine(const Mat& left, const Mat& right, Mat& disparity,
         // Forward path
         // 
         for (int col = window_size + max_disparity + 1; col < left.cols; col++) {
-            // cout << "(" << row << "," << col << ")" << endl;
-
             for (int k = 0; k < max_disparity; k++) {
-                // cout << "k = " << k << endl;
-
                 // compute next node with minimum costs
                 double min = numeric_limits<double>::max();
 
                 for (int k_prev = 0; k_prev < max_disparity; k_prev++) {
-                    // cout << "k_prev = " << k_prev << endl;
-
                     double cost = costs_prev[k_prev] + cost_scale * cost_fn(k, k_prev);
 
                     // a better minimum was found
                     if (cost < min) {
-                        // update minimum
-                        min = cost;
-                        // store the best predecessor
-                        path_pointers[col][k] = k_prev;
+                        min = cost;                     // update minimum
+                        path_pointers[col][k] = k_prev; // store the best predecessor
                     }
                 }
-
-                double cost = matchSSDColor(left, right, window_size, row, col, col - k) + min;
-                // cout << "min = " << min << ", cost = " << cost << endl;
-                
-                // updates the
-                costs_current[k] = cost;
+                costs_current[k] = matchSSDColor(left, right, window_size, row, col, col - k) + min;
             }
-
-            // cout << "previous costs:" << endl;
-            // for (int i = 0; i < costs_current.size(); i++) {
-            //     cout << "  " << costs_current[i] << endl;
-            // }
-
             // copy costs for the next pixel
             costs_prev = costs_current;
-
-            // cin.get();
         }
-
 
         // Backward pass
         // 
@@ -372,8 +350,7 @@ void calcDisparityLine(const Mat& left, const Mat& right, Mat& disparity,
 
         for (int k = 0; k < max_disparity; k++) {
             if (costs_current[k] < min) {
-                // update minimum
-                min = costs_current[k];
+                min = costs_current[k]; // update minimum
                 disparity.at<uchar>(row, left.cols - 1) = (uchar) k;
             }
         }
@@ -383,7 +360,7 @@ void calcDisparityLine(const Mat& left, const Mat& right, Mat& disparity,
             disparity.at<uchar>(row, col) = (uchar) path_pointers[col + 1][disparity.at<uchar>(row, col + 1)];
         }
     }
-    cout << endl;
+    cout << endl; // finish progress bar
 }
 
 
@@ -399,16 +376,7 @@ void calcDisparityTree(const Mat& left, const Mat& right, Tree& tree, Mat& dispa
     // initialize disparity map matrix as a grayscale image
     disparity = Mat(left.size(), CV_8UC1);
 
-
     vector<vector<int>> path_pointers(tree.size(), vector<int>(max_disparity));
-
-    // Stores the cost of the path to each previous nodes
-    // We cannot write the costs directly back into the costs_prev vector
-    // because the previous costs are requied in the next iteration step
-    // of k_prev again.
-    // vector<double> costs_prev(max_disparity, 0); // = F_{i - 1}
-    // vector<double> costs_current(max_disparity); // = F_i
-
     stack<int> node_stack;
 
     // populate stack with all leafs
@@ -667,15 +635,20 @@ int main(int argc, char const *argv[])
         return 1;
     }
 
+    cout << "Parameters:"                          << endl
+         << "  window size   : " << window_size    << endl
+         << "  max disparity : " << max_disparity  << endl
+         << "  topology      : " << topology       << endl
+         << "  cost scale    : " << cost_scale     << endl
+         << "  cost function : " << cost_fn_name   << endl
+         << "  output        : " << output         << endl;
+
     if (topology == "tree") {
         Tree tree(left.rows - window_size, left.cols - window_size);
         calcDisparityTree(left, right, tree, disparity, window_size, max_disparity, cost_fn, cost_scale);
     } else { // topology == "line"
         calcDisparityLine(left, right, disparity, window_size, max_disparity, cost_fn, cost_scale);
     }
-
-
-    // cout << tree;
 
 
     // normalize disparity to a regular grayscale image

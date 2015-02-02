@@ -3,6 +3,7 @@
 #include <stack>
 #include <getopt.h> // getopt_long()
 #include <limits>   // numeric_limits
+#include <assert.h> // assert
 
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -39,11 +40,10 @@ class Tree
 {
   public:
     std::vector<Node> nodes;
+    std::vector<int>  leafs; // indices of the nodes that are leafs
+    int               root;  // index of the root node
 
-    // index of the root node
-    int root = none;
-
-    Tree(const int rows, const int cols)
+    Tree(const int rows, const int cols) : root(none)
     {
         const int middle = cols / 2;
 
@@ -62,6 +62,10 @@ class Tree
                     // node to the left
                     if (col > 0) {
                         node.children[0] = row * cols + col - 1;
+                    }
+                    // there is no right child, therefore the node is a leaf
+                    else {
+                        leafs.push_back(i);
                     }
                 }
                 // middle
@@ -91,6 +95,10 @@ class Tree
                     if (col + 1 < cols) {
                         node.children[2] = row * cols + col + 1;
                     }
+                    // there is no right child, therefore the node is a leaf
+                    else {
+                        leafs.push_back(i);
+                    }
                 }
                 nodes[i] = node;
             }
@@ -109,6 +117,25 @@ class Tree
             }
         }
     };
+
+    inline const Node& operator[] (const int i) const { return nodes[i]; }
+    inline       Node& operator[] (const int i)       { return nodes[i]; }
+
+    /**
+     * Descide for a node if all child nodes have already be calculated.
+     * 
+     * @return [description]
+     */
+    inline bool canCalculate(int i)
+    {
+        const Node& node = nodes[i];
+
+        if (node.children[0] != none && nodes[node.children[0]].costs == nullptr) { return false; }
+        if (node.children[1] != none && nodes[node.children[1]].costs == nullptr) { return false; }
+        if (node.children[2] != none && nodes[node.children[2]].costs == nullptr) { return false; }
+
+        return true;
+    }
 
     friend ostream& operator<<(ostream& os, const Tree& tree);
 };
@@ -172,15 +199,15 @@ double matchSSDColor(const Mat& left, const Mat& right,
     for (int offset_row = 0; offset_row < window_size; offset_row++) {
         for (int offset_col = 0; offset_col < window_size; offset_col++) {
 
-            // cout << "(" << (row + offset_row) << "," << (col_left   - offset_col) << ")" << endl;
-            // cout << "(" << (row + offset_row) << "," << (col_right  - offset_col) << ")" << endl;
+            // cout << "left  (" << (row + offset_row) << "," << (col_left   - offset_col) << ")" << endl;
+            // cout << "right (" << (row + offset_row) << "," << (col_right  - offset_col) << ")" << endl;
 
             const Vec3b pixel_left  = left.at<Vec3b> (row + offset_row, col_left   - offset_col);
             const Vec3b pixel_right = right.at<Vec3b>(row + offset_row, col_right  - offset_col);
 
-            distance += pow(pixel_left[1] - pixel_right[1], 2) +
-                        pow(pixel_left[2] - pixel_right[2], 2) +
-                        pow(pixel_left[3] - pixel_right[3], 2);
+            distance += pow(pixel_left[0] - pixel_right[0], 2) +
+                        pow(pixel_left[1] - pixel_right[1], 2) +
+                        pow(pixel_left[2] - pixel_right[2], 2);
         }
     }
 
@@ -309,12 +336,32 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
     // We cannot write the costs directly back into the costs_prev vector
     // because the previous costs are requied in the next iteration step
     // of k_prev again.
-    vector<double> costs_prev(max_disparity, 0); // = F_{i - 1}
-    vector<double> costs_current(max_disparity); // = F_i
+    // vector<double> costs_prev(max_disparity, 0); // = F_{i - 1}
+    // vector<double> costs_current(max_disparity); // = F_i
 
-    // depth first search approach
     stack<int> nodes_stack;
-    nodes_stack.push(tree.root);
+
+    // populate stack with all leafs
+    for (int i = 0; i < tree.leafs.size(); i++) {
+
+        // int row    = tree.leafs[i] / (left.cols - window_size);
+        // int col    = tree.leafs[i] % (left.cols - window_size) + window_size;
+        // cout << "leaf (" << row << "," << col << ")" << endl;
+
+        // initialize costs for the leaf with 0
+        Node& node = tree.nodes[tree.leafs[i]];
+        node.costs = new vector<double>(max_disparity, 0);
+
+        const int p = tree[tree.leafs[i]].parent;
+
+        if (tree.canCalculate(p)) {
+            nodes_stack.push(p);
+
+            // int row_p    = p / (left.cols - window_size);
+            // int col_p    = p % (left.cols - window_size) + window_size;
+            // cout << "push (" << row_p << "," << col_p << ")" << endl;
+        }
+    }
 
     // Forward path
     // 
@@ -322,22 +369,25 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
         const int i = nodes_stack.top();
         nodes_stack.pop();
 
-        // Node node  = tree.nodes[i];
         Node& node = tree.nodes[i];
-        int row    = i / left.cols;
-        int col    = i % left.cols;
+        int row    = i / (left.cols - window_size);
+        int col    = i % (left.cols - window_size) + window_size;
         
-        // if the window would overflow the image at the current position
-        // skip this node
-        if (row >= left.rows - window_size) { continue; }
-        if (col < window_size)              { continue; }
-
         // where to go?
         // cout << setw(2) << i << ": (" << row << "," << col << ")" <<  endl;
 
-        if (node.children[1] != none) { nodes_stack.push(node.children[1]); }
-        if (node.children[0] != none) { nodes_stack.push(node.children[0]); }
-        if (node.children[2] != none) { nodes_stack.push(node.children[2]); }
+        // cout << "Push parent ... ";
+        if (node.parent != none) {
+            const Node& parent = tree.nodes[node.parent];
+
+            if (tree.canCalculate(node.parent)) {
+                nodes_stack.push(node.parent);
+            }
+        }
+        // cout << "OK" << endl;
+
+        assert(node.costs == nullptr);
+        node.costs = new vector<double>(max_disparity);
 
         for (int k = 0; k < max_disparity && k <= col; k++) {
             // cout << "k = " << k << endl;
@@ -350,37 +400,72 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
 
                 // cout << "transitionCost = " << transitionCost(k, k_prev) << endl;
 
-                double cost = costs_prev[k_prev] + cost_scale * transitionCost(k, k_prev);
+                // double cost = costs_prev[k_prev] + cost_scale * transitionCost(k, k_prev);
+                // double cost = (node.children[0] != none) ? tree[node.children[0]].costs[k_prev] + cost_scale * transitionCost(k, k_prev) : 0 +
+                //               (node.children[1] != none) ? tree[node.children[1]].costs[k_prev] + cost_scale * transitionCost(k, k_prev) : 0 +
+                //               (node.children[2] != none) ? tree[node.children[2]].costs[k_prev] + cost_scale * transitionCost(k, k_prev) : 0;
+
+                // double cost_prev = 0;
+                double cost_prev = 0;
+
+                // cout << "Sum up child nodes ... " << flush;
+                if (node.children[0] != none) { cost_prev += (*tree[node.children[0]].costs)[k_prev] + cost_scale * transitionCost(k, k_prev); }
+                if (node.children[1] != none) { cost_prev += (*tree[node.children[1]].costs)[k_prev] + cost_scale * transitionCost(k, k_prev); }
+                if (node.children[2] != none) { cost_prev += (*tree[node.children[2]].costs)[k_prev] + cost_scale * transitionCost(k, k_prev); }
+                // cout << "OK" << endl;
+
+                // // sum costs of all child nodes
+                // for (int j = 0; j < 3; j++) {
+                //     if (node.children[j] != none) {
+                //         vector<double>& child_costs = *tree[node.children[j]].costs;
+
+                //         cost_prev += child_costs[k_prev] +  cost_scale * transitionCost(k, k_prev);
+                //     }
+                // }
 
                 // a better minimum was found
-                if (cost < min) {
+                if (cost_prev < min) {
                     // update minimum
-                    min = cost;
+                    min = cost_prev;
                     // store the best predecessor
+                    // cout << "Store predecessor ... ";
                     path_pointers[i][k] = k_prev;
+                    // cout << "OK" << endl;
                 }
+
+                // cout << "next" << endl;
             }
 
+
+            // printf("matchSSDColor(_, _, %d, %d, %d, %d) = %f\n", window_size, row, col, col - k, matchSSDColor(left, right, window_size, row, col, col - k));
             double cost = matchSSDColor(left, right, window_size, row, col, col - k) + min;
             // cout << "min = " << min << ", cost = " << cost << endl;
             
-            costs_current[k] = cost;
+            // cout << "Assign costs = " << cost << " to " << node.costs << " ... " << flush;
+            (*node.costs)[k] = cost;
+            // cout << "OK" << endl;
         }
 
-        if (node.numChildNodes() > 1 && node.costs == nullptr) {
-            node.costs = new vector<double>(costs_current);
+        // cout << "Delete child nodes ... " << flush;
+        if (node.children[0] != none) { delete tree[node.children[0]].costs; tree[node.children[0]].costs = nullptr; }
+        if (node.children[1] != none) { delete tree[node.children[1]].costs; tree[node.children[1]].costs = nullptr; }
+        if (node.children[2] != none) { delete tree[node.children[2]].costs; tree[node.children[2]].costs = nullptr; }
+        // cout << "OK" << endl;
+
+
+        if (node.parent != none && tree.canCalculate(node.parent)) {
+            // cout << "Push " << node.parent << endl;
+            nodes_stack.push(node.parent);
         }
 
         // Leaf. Load the previous costs from the parent of the next node
-        if (node.numChildNodes() == 0) {
-            Node& next_node = tree.nodes[nodes_stack.top()];
-            costs_prev      = *(tree.nodes[next_node.parent].costs);
-        } else {
+        // if (node.numChildNodes() == 0) {
+        //     Node& next_node = tree.nodes[nodes_stack.top()];
+            // costs_prev      = *(tree.nodes[next_node.parent].costs);
+        // } else {
             // copy costs for the next pixel
-            costs_prev = costs_current;
-        }
-
-
+            // costs_prev = costs_current;
+        // }
 
     }
 }
@@ -471,7 +556,7 @@ int main(int argc, char const *argv[])
     if (!parsePositionalImage(left,  CV_LOAD_IMAGE_COLOR, "left",  argc, argv)) { return 1; }
     if (!parsePositionalImage(right, CV_LOAD_IMAGE_COLOR, "right", argc, argv)) { return 1; }
 
-    Tree tree(left.rows, left.cols);
+    Tree tree(left.rows - window_size, left.cols - window_size);
     // cout << tree;
 
     for (int i = 0; i < tree.nodes.size(); ++i) {

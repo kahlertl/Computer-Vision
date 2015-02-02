@@ -103,6 +103,8 @@ class Tree
                 nodes[i] = node;
             }
         }
+
+        assert(root != none);
     }
 
     ~Tree()
@@ -339,7 +341,7 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
     // vector<double> costs_prev(max_disparity, 0); // = F_{i - 1}
     // vector<double> costs_current(max_disparity); // = F_i
 
-    stack<int> nodes_stack;
+    stack<int> node_stack;
 
     // populate stack with all leafs
     for (int i = 0; i < tree.leafs.size(); i++) {
@@ -356,7 +358,7 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
         const int p = tree[tree.leafs[i]].parent;
 
         if (tree.canCalculate(p)) {
-            nodes_stack.push(p);
+            node_stack.push(p);
 
             // int row_p    = p / (left.cols - window_size);
             // int col_p    = p % (left.cols - window_size) + window_size;
@@ -366,9 +368,9 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
 
     // Forward path
     // 
-    while (!nodes_stack.empty()) {
-        const int i = nodes_stack.top();
-        nodes_stack.pop();
+    while (!node_stack.empty()) {
+        const int i = node_stack.top();
+        node_stack.pop();
 
         Node& node = tree.nodes[i];
         int row    = i / (left.cols - window_size);
@@ -378,7 +380,7 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
         // cout << setw(2) << i << ": (" << row << "," << col << ")" <<  endl;
 
         if (node.parent != none && tree.canCalculate(node.parent)) {
-            nodes_stack.push(node.parent);
+            node_stack.push(node.parent);
         }
 
         assert(node.costs == nullptr);
@@ -396,7 +398,7 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
                 if (node.children[1] != none) { cost_prev += (*tree[node.children[1]].costs)[k_prev] + cost_scale * transitionCost(k, k_prev); }
                 if (node.children[2] != none) { cost_prev += (*tree[node.children[2]].costs)[k_prev] + cost_scale * transitionCost(k, k_prev); }
 
-                // a better minimum was found
+                // a "better" minimum was found
                 if (cost_prev < min) {
                     min = cost_prev;              // update minimum
                     path_pointers[i][k] = k_prev; // store the best predecessor
@@ -414,8 +416,61 @@ void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity
         if (node.children[2] != none) { delete tree[node.children[2]].costs; tree[node.children[2]].costs = nullptr; }
 
         if (node.parent != none && tree.canCalculate(node.parent)) {
-            nodes_stack.push(node.parent);
+            node_stack.push(node.parent);
         }
+    }
+
+    // Backward pass
+    // 
+
+    assert(tree[tree.root].costs != nullptr);
+    assert(node_stack.size() == 0);
+
+    // find disparity with minimal costs for the root node
+    double min = numeric_limits<double>::max();
+
+    vector<double>& root_costs = *tree[tree.root].costs;
+
+    for (int k = 0; k < max_disparity; k++) {
+        // update minimum and assign disparity value if a smaller node was found
+        if (root_costs[k] < min) {
+            min = root_costs[k]; 
+            disparity.at<uchar>(tree.root / (left.cols - window_size),
+                                tree.root % (left.cols - window_size) + window_size) = (uchar) k;
+        }
+    }
+
+    // initial population of the child node stack (depth first search approach because of small
+    // memory usage)
+    if (tree[tree.root].children[0] != none) { node_stack.push(tree[tree.root].children[0]); }
+    if (tree[tree.root].children[1] != none) { node_stack.push(tree[tree.root].children[1]); }
+    if (tree[tree.root].children[2] != none) { node_stack.push(tree[tree.root].children[2]); }
+
+    // use the stored indices to get the minimal path
+    while (!node_stack.empty()) {
+        int i = node_stack.top();  // index of the current node
+        int p = tree[i].parent;    // index of parent node
+        node_stack.pop();
+
+        assert(p != none);
+
+        // compute row an columns from the indices
+        int row        = i / (left.cols - window_size);
+        int col        = i % (left.cols - window_size) + window_size;
+
+        int row_parent = p / (left.cols - window_size);
+        int col_parent = p % (left.cols - window_size) + window_size;
+
+        // get the disparity value for the parent node
+        uchar disp_parent = disparity.at<uchar>(row_parent, col_parent);
+
+        // the pointer stores the best disparity of the predecessor node
+        disparity.at<uchar>(row, col) = (uchar) path_pointers[p][disp_parent];
+
+        // add child nodes of the current 
+        if (tree[i].children[0] != none) { node_stack.push(tree[i].children[0]); }
+        if (tree[i].children[1] != none) { node_stack.push(tree[i].children[1]); }
+        if (tree[i].children[2] != none) { node_stack.push(tree[i].children[2]); }
     }
 }
 
@@ -505,26 +560,34 @@ int main(int argc, char const *argv[])
     if (!parsePositionalImage(left,  CV_LOAD_IMAGE_COLOR, "left",  argc, argv)) { return 1; }
     if (!parsePositionalImage(right, CV_LOAD_IMAGE_COLOR, "right", argc, argv)) { return 1; }
 
+    // Validate parameter set
+    // 
+    if (left.size() != right.size()) {
+        cerr << "Error: images must be of same size" << endl;
+        return 1;
+    }
+    if (window_size >= left.cols || window_size >= left.rows) {
+        cerr << "Error: Windows size must be smaller than the image" << endl;
+        return 1;
+    }
+
+
     Tree tree(left.rows - window_size, left.cols - window_size);
     // cout << tree;
-
-    for (int i = 0; i < tree.nodes.size(); ++i) {
-        Node& node = tree.nodes[i];
-    }
 
     // calcDisparity(left, right, disparity, window_size, max_disparity, cost_scale);
     calcDisparity(left, right, tree, disparity, window_size, max_disparity, cost_scale);
 
-    // // normalize disparity to a regular grayscale image
-    // normalize(disparity, disparity, 0, 255, NORM_MINMAX);
+    // normalize disparity to a regular grayscale image
+    normalize(disparity, disparity, 0, 255, NORM_MINMAX);
 
-    // try {
-    //     imwrite(target, disparity);
-    // } catch (runtime_error& ex) {
-    //     cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
+    try {
+        imwrite(target, disparity);
+    } catch (runtime_error& ex) {
+        cerr << "Error: cannot save disparity map to '" << target << "'" << endl;
 
-    //     return 1;
-    // }
+        return 1;
+    }
 
     return 0;
 }

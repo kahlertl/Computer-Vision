@@ -1,5 +1,6 @@
 #include <iostream>
 #include <iomanip>  // std::setw
+#include <stack>
 #include <getopt.h> // getopt_long()
 #include <limits>   // numeric_limits
 
@@ -11,86 +12,121 @@ using namespace cv;
 
 static const int none = -1;
 
+
+
 typedef struct Node {
     int parent;
     int children[3]; // left, middle, right
 
+    vector<double>* costs;
+
     // initialize all node indices with none
-    Node() : parent(none), children { none, none, none } { };
+    Node() : parent(none), children { none, none, none }, costs(nullptr) { };
+
+    inline int const numChildNodes()
+    {
+        int num = 0;
+
+        if (children[0] != none) { num++; }
+        if (children[1] != none) { num++; }
+        if (children[2] != none) { num++; }
+
+        return num;
+    }
 } Node;
 
 class Tree
 {
-    const Mat& image;
+  public:
     std::vector<Node> nodes;
 
-  public:
-    Tree(Mat& image) : image(image)
-    {
-        const int middle = image.cols / 2;
+    // index of the root node
+    int root = none;
 
-        // initialize tree hierarchy with number of elements in the image matrix
-        nodes = vector<Node>(image.rows * image.cols);
+    Tree(const int rows, const int cols)
+    {
+        const int middle = cols / 2;
+
+        // initialize tree hierarchy with number of elements in the matrix
+        nodes = vector<Node>(rows * cols);
 
         // generate grid spanning tree
-        for (int row = 0; row < image.rows; row++) {
-            for (int col = 0; col < image.cols; col++) {
-                // const int i = row * image.cols + col;
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                const int i = row * cols + col;
                 Node node;
                 
                 // left
                 if (col < middle) {
-                    node.parent   = row * image.cols + col + 1; // node to the right is parent
+                    node.parent   = row * cols + col + 1; // node to the right is parent
                     // node to the left
                     if (col > 0) {
-                        node.children[0] = row * image.cols + col - 1;
+                        node.children[0] = row * cols + col - 1;
                     }
                 }
                 // middle
                 else if (col == middle) {
+                    // check if the parent nodes above exists
                     if (row > 0) {
-                        node.parent = (row - 1) * image.cols + col;
+                        node.parent = (row - 1) * cols + col;
                     }
+                    // if not, we have found the root node
+                    else {
+                        root = i;
+                    }
+
                     // left and right child nodes
-                    node.children[0] = row * image.cols + col - 1;
-                    node.children[2] = row * image.cols + col + 1;
+                    node.children[0] = row * cols + col - 1;
+                    node.children[2] = row * cols + col + 1;
                     // check if the node below exists
-                    if (row + 1 < image.rows) {
-                        node.children[1] = (row + 1) * image.cols + col;
+                    if (row + 1 < rows) {
+                        node.children[1] = (row + 1) * cols + col;
                     }
                 }
                 // right 
                 else {
-                    node.parent = row * image.cols + col - 1;
+                    node.parent = row * cols + col - 1;
 
                     // node the the right is child
-                    if (col + 1 < image.cols) {
-                        node.children[2] = row * image.cols + col + 1;
+                    if (col + 1 < cols) {
+                        node.children[2] = row * cols + col + 1;
                     }
                 }
-
-                nodes[row * image.cols + col] = node;
+                nodes[i] = node;
             }
         }
     }
 
-    // ~Tree() {};
+    ~Tree()
+    {
+        // cout << "Destruct Tree ..." << endl;
+
+        // delete all old costs
+        for (int i = 0; i < nodes.size(); i++) {
+            if (nodes[i].costs != nullptr) {
+                // cout << "Delete " << i << endl;
+                delete nodes[i].costs;
+            }
+        }
+    };
 
     friend ostream& operator<<(ostream& os, const Tree& tree);
 };
 
+
 ostream& operator<<(ostream& os, const Tree& tree)
 {
     for (int i = 0; i < tree.nodes.size(); i++) {
-        os << setw(2) << i << ": ";
-        os << setw(3) << tree.nodes[i].parent << " | ";
-        os << setw(2) << tree.nodes[i].children[0] << " ";
-        os << setw(2) << tree.nodes[i].children[1] << " ";
-        os << setw(2) << tree.nodes[i].children[2] << endl;
+        os << setw(2) << i                         << ": "
+           << setw(3) << tree.nodes[i].parent      << " | "
+           << setw(2) << tree.nodes[i].children[0] << " "
+           << setw(2) << tree.nodes[i].children[1] << " "
+           << setw(2) << tree.nodes[i].children[2] << endl;
     }
 
     return os;
 }
+
 
 static void usage()
 {
@@ -254,6 +290,102 @@ void calcDisparity(const Mat& left, const Mat& right, Mat& disparity,
 }
 
 
+void calcDisparity(const Mat& left, const Mat& right, Tree& tree, Mat& disparity,
+                   const int window_size, const int max_disparity, const double cost_factor)
+{
+    // scale cost function:
+    // 
+    //    (max value of SSD color match) / max disparity * cost_factor
+    // 
+    const double cost_scale = 3 * (255.0 * 255.0) * (window_size * window_size) / max_disparity * cost_factor;
+    
+    // initialize disparity map matrix as a grayscale image
+    disparity = Mat(left.size(), CV_8UC1);
+
+
+    vector<vector<int>> path_pointers(tree.nodes.size(), vector<int>(max_disparity));
+
+    // Stores the cost of the path to each previous nodes
+    // We cannot write the costs directly back into the costs_prev vector
+    // because the previous costs are requied in the next iteration step
+    // of k_prev again.
+    vector<double> costs_prev(max_disparity, 0); // = F_{i - 1}
+    vector<double> costs_current(max_disparity); // = F_i
+
+    // depth first search approach
+    stack<int> nodes_stack;
+    nodes_stack.push(tree.root);
+
+    // Forward path
+    // 
+    while (!nodes_stack.empty()) {
+        const int i = nodes_stack.top();
+        nodes_stack.pop();
+
+        // Node node  = tree.nodes[i];
+        Node& node = tree.nodes[i];
+        int row    = i / left.cols;
+        int col    = i % left.cols;
+        
+        // if the window would overflow the image at the current position
+        // skip this node
+        if (row >= left.rows - window_size) { continue; }
+        if (col < window_size)              { continue; }
+
+        // where to go?
+        // cout << setw(2) << i << ": (" << row << "," << col << ")" <<  endl;
+
+        if (node.children[1] != none) { nodes_stack.push(node.children[1]); }
+        if (node.children[0] != none) { nodes_stack.push(node.children[0]); }
+        if (node.children[2] != none) { nodes_stack.push(node.children[2]); }
+
+        for (int k = 0; k < max_disparity && k <= col; k++) {
+            // cout << "k = " << k << endl;
+
+            // compute next node with minimum costs
+            double min = numeric_limits<double>::max();
+
+            for (int k_prev = 0; k_prev < max_disparity; k_prev++) {
+                // cout << "k_prev = " << k_prev << endl;
+
+                // cout << "transitionCost = " << transitionCost(k, k_prev) << endl;
+
+                double cost = costs_prev[k_prev] + cost_scale * transitionCost(k, k_prev);
+
+                // a better minimum was found
+                if (cost < min) {
+                    // update minimum
+                    min = cost;
+                    // store the best predecessor
+                    path_pointers[i][k] = k_prev;
+                }
+            }
+
+            double cost = matchSSDColor(left, right, window_size, row, col, col - k) + min;
+            // cout << "min = " << min << ", cost = " << cost << endl;
+            
+            costs_current[k] = cost;
+        }
+
+        if (node.numChildNodes() > 1 && node.costs == nullptr) {
+            node.costs = new vector<double>(costs_current);
+        }
+
+        // Leaf. Load the previous costs from the parent of the next node
+        if (node.numChildNodes() == 0) {
+            Node& next_node = tree.nodes[nodes_stack.top()];
+            costs_prev      = *(tree.nodes[next_node.parent].costs);
+        } else {
+            // copy costs for the next pixel
+            costs_prev = costs_current;
+        }
+
+
+
+    }
+}
+
+
 int main(int argc, char const *argv[])
 {
     Mat left;
@@ -337,12 +469,17 @@ int main(int argc, char const *argv[])
 
     // parse positional arguments
     if (!parsePositionalImage(left,  CV_LOAD_IMAGE_COLOR, "left",  argc, argv)) { return 1; }
-    // if (!parsePositionalImage(right, CV_LOAD_IMAGE_COLOR, "right", argc, argv)) { return 1; }
+    if (!parsePositionalImage(right, CV_LOAD_IMAGE_COLOR, "right", argc, argv)) { return 1; }
 
-    Tree tree(left);
-    cout << tree;
+    Tree tree(left.rows, left.cols);
+    // cout << tree;
+
+    for (int i = 0; i < tree.nodes.size(); ++i) {
+        Node& node = tree.nodes[i];
+    }
 
     // calcDisparity(left, right, disparity, window_size, max_disparity, cost_scale);
+    calcDisparity(left, right, tree, disparity, window_size, max_disparity, cost_scale);
 
     // // normalize disparity to a regular grayscale image
     // normalize(disparity, disparity, 0, 255, NORM_MINMAX);

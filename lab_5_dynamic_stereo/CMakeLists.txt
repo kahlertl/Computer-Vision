@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( dynamic_stereo )
+find_package( OpenCV REQUIRED )
+add_executable( dynamic_stereo dynamic_stereo.cpp )
+target_link_libraries( dynamic_stereo ${OpenCV_LIBS} )
+set(CMAKE_CXX_FLAGS "-std=c++0x")

@@ -15,6 +15,7 @@ using namespace cv;
 // neat shortcut for node indices representing a none existent
 // node reference
 static const int none = -1;
+int conversion_offset = 0;
 
 // signature of all cost functions
 typedef int (*cost_t)(const int a, const int b);
@@ -210,11 +211,11 @@ ostream& operator<<(ostream& os, const Tree& tree)
  * The windows size is important, because we crop a vertical strip on the left side of the image. This
  * is required because we use block matching.
  */
-inline tuple<int, int> convertIndex(const int index, const int image_width, const int window_size)
+inline tuple<int, int> convertIndex(const int index, const int image_width)
 {
     return make_tuple(
-        index / (image_width - window_size),              // row
-        index % (image_width - window_size) + window_size // col
+        index / (image_width - conversion_offset),                    // row
+        index % (image_width - conversion_offset) + conversion_offset // col
     );
 }
 
@@ -410,7 +411,7 @@ void calcDisparityTree(const Mat& left, const Mat& right, Tree& tree, Mat& dispa
 
         Node& node = tree[i];
         int row, col;
-        tie(row, col) = convertIndex(i, left.cols, window_size);
+        tie(row, col) = convertIndex(i, left.cols);
         
         // where to go?
         // cout << setw(2) << i << ": (" << row << "," << col << ")" <<  endl;
@@ -471,9 +472,10 @@ void calcDisparityTree(const Mat& left, const Mat& right, Tree& tree, Mat& dispa
     for (int k = 0; k < max_disparity; k++) {
         // update minimum and assign disparity value if a smaller node was found
         if (root_costs[k] < min) {
-            min = root_costs[k]; 
-            disparity.at<uchar>(tree.root / (left.cols - window_size),
-                                tree.root % (left.cols - window_size) + window_size) = (uchar) k;
+            min = root_costs[k];
+            int row, col;
+            tie(row, col) = convertIndex(tree.root, left.cols);
+            disparity.at<uchar>(row, col) = (uchar) k;
         }
     }
 
@@ -492,11 +494,11 @@ void calcDisparityTree(const Mat& left, const Mat& right, Tree& tree, Mat& dispa
         assert(p != none);
 
         // compute row an columns from the indices
-        int row        = i / (left.cols - window_size);
-        int col        = i % (left.cols - window_size) + window_size;
+        int row, col;
+        tie(row, col)  = convertIndex(i, left.cols);
 
-        int row_parent = p / (left.cols - window_size);
-        int col_parent = p % (left.cols - window_size) + window_size;
+        int row_parent, col_parent;
+        tie(row_parent, col_parent) = convertIndex(p, left.cols);
 
         // get the disparity value for the parent node
         uchar disp_parent = disparity.at<uchar>(row_parent, col_parent);
@@ -643,8 +645,11 @@ int main(int argc, char const *argv[])
          << "  cost function : " << cost_fn_name   << endl
          << "  output        : " << output         << endl;
 
+	disparity = Mat::zeros(left.size(), CV_8UC1);
+
     if (topology == "tree") {
-        Tree tree(left.rows - window_size, left.cols - window_size);
+		conversion_offset = max_disparity;
+        Tree tree(left.rows - conversion_offset, left.cols - conversion_offset);
         calcDisparityTree(left, right, tree, disparity, window_size, max_disparity, cost_fn, cost_scale);
     } else { // topology == "line"
         calcDisparityLine(left, right, disparity, window_size, max_disparity, cost_fn, cost_scale);

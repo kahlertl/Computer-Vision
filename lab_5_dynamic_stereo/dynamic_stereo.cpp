@@ -645,10 +645,10 @@ int main(int argc, char const *argv[])
          << "  cost function : " << cost_fn_name   << endl
          << "  output        : " << output         << endl;
 
-	disparity = Mat::zeros(left.size(), CV_8UC1);
+    disparity = Mat::zeros(left.size(), CV_8UC1);
 
     if (topology == "tree") {
-		conversion_offset = max_disparity;
+        conversion_offset = max_disparity;
         Tree tree(left.rows - conversion_offset, left.cols - conversion_offset);
         calcDisparityTree(left, right, tree, disparity, window_size, max_disparity, cost_fn, cost_scale);
     } else { // topology == "line"

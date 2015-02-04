@@ -1,0 +1,28 @@
+!makefile/Makefile
+
+# Binary
+panst
+
+# Output images
+aL.png
+bL.png
+cL.png
+aaL.png
+bbL.png
+ccL.png
+eL.png
+mL.png
+keypointsL.png
+aR.png
+bR.png
+cR.png
+aaR.png
+bbR.png
+ccR.png
+eR.png
+mR.png
+keypointsR.png
+matches.png
+warpedL.png
+warpedR.png
+panorama.png

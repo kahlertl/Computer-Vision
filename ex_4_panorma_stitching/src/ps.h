@@ -38,11 +38,12 @@ void save_matches_as_image(int heightl, int widthl, unsigned char *imgl,
                            vector<MATCH> matches, const char *name);
 void save_keypoints_as_image(int height, int width, unsigned char *img,
                              vector<KEYPOINT> points, const char *name);
-inline void ht(double x0, double y0, Mat &H, double *x, double *y) {
-    Mat point1=(Mat_<double>(3,1) << x0,y0,1.);
-    Mat point2=H*point1;
-    *x=point2.at<double>(0,0)/point2.at<double>(2,0);
-    *y=point2.at<double>(1,0)/point2.at<double>(2,0);
+inline void ht(double x0, double y0, Mat &H, double *x, double *y)
+{
+    Mat point1 = (Mat_<double>(3, 1) << x0, y0, 1.);
+    Mat point2 = H * point1;
+    *x = point2.at<double>(0, 0) / point2.at<double>(2, 0);
+    *y = point2.at<double>(1, 0) / point2.at<double>(2, 0);
 }
 void render(int heightl, int widthl, Mat &imgl,
             int heightr, int widthr, Mat &imgr,

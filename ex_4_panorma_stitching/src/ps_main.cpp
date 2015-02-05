@@ -106,110 +106,123 @@ int main(int argc, char **argv)
     // 
     FlannBasedMatcher matcher;
     // BFMatcher matcher;
-    vector<DMatch> matches;
+    // vector<DMatch> matches;
+    vector<vector<DMatch>> matches_left_right;
+    vector<vector<DMatch>> matches_right_left;
 
     cout << "Matching ..." << endl;
 
-    matcher.match(descriptors_left, descriptors_right, matches);
+    // matcher.match(descriptors_left, descriptors_right, matches);
+    matcher.knnMatch(descriptors_left, descriptors_right, matches_left_right, 5);
+    matcher.knnMatch(descriptors_left, descriptors_right, matches_right_left, 5);
 
+    vector<DMatch> matches;
 
-    #ifdef SAVE_ALL
-        Mat img_matches;
-        drawMatches(
-            gray_left,  keypoints_left,               // left image with its keypoints
-            gray_right, keypoints_right,              // right image with its keypoints
-            matches,                                 // matches between the keypoints
-            img_matches,                             // output image
-            Scalar::all(-1),                         // color of matches
-            Scalar::all(-1),                         // color of single points
-            vector<char>(),                          // mask determining which matches are drawn. If empty
-                                                     // all matches are drawn 
-            DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS // Single keypoints will not be drawn
-        );
-        imwrite("matches.png", img_matches);
-    #endif
+    marriageMatch(matches_left_right, matches_right_left, 5, matches);
 
-
-
-    double max_dist = 0;
-    double min_dist = numeric_limits<double>::max();
-
-    // Quick calculation of max and min distances between keypoints
-    for (int i = 0; i < descriptors_left.rows; i++) {
-        double dist = matches[i].distance;
-
-        if (dist < min_dist) min_dist = dist;
-        if (dist > max_dist) max_dist = dist;
-    }
-  
-    cout << "Max dist: " << max_dist << endl;
-    cout << "Min dist: " << min_dist << endl;
-  
-    // Draw only "good" matches (i.e. whose distance is less than 2*min_dist,
-    // or a small arbitary value ( 0.02 ) in the event that min_dist is very
-    // small)
-    // radiusMatch() can also be used here.
-  
-    int j = 0;
-    for (int i = 0; i < descriptors_left.rows; i++) {
-        if (matches[i].distance <= max(8 * min_dist, 0.02)) {
-            matches[j++] = matches[i];
-        }
-    }
-    matches.resize(j);
-
-    #ifdef SAVE_ALL
-        Mat img_matches_nonmax;
-        drawMatches(
-            gray_left,  keypoints_left,              // left image with its keypoints
-            gray_right, keypoints_right,             // right image with its keypoints
-            matches,                                 // matches between the keypoints
-            img_matches_nonmax,                      // output image
-            Scalar::all(-1),                         // color of matches
-            Scalar::all(-1),                         // color of single points
-            vector<char>(),                          // mask determining which matches are drawn. If empty
-                                                     // all matches are drawn 
-            DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS // Single keypoints will not be drawn
-        );
-        imwrite("matches-maxdist.png", img_matches_nonmax);
-    #endif
-
-
-    // homography -- OpenCV implementation
-    cout  << "Start standard RANSAC ..." << endl;
-    vector<Point2d> points_left;
-    vector<Point2d> points_right;
     for (int i = 0; i < matches.size(); i++) {
-        points_left.push_back(keypoints_left[matches[i].queryIdx].pt);
-        points_right.push_back(keypoints_right[matches[i].trainIdx].pt);
+        cout << matches[i].queryIdx << flush << endl;
     }
-    Mat H = findHomography(points_left, points_right, CV_RANSAC);
-    Mat Hi = H.inv();
-    cout << " done";
 
-    // render the output
-    Mat imglt = img_right.clone();
-    warpPerspective(img_left, imglt, H, imglt.size(), INTER_LINEAR);
-    // imglt = imglt * 0.5 + img_right * 0.5;
-    imwrite("warpedL.png", imglt);
+    return 0;
 
-    Mat imgrt = img_left.clone();
-    warpPerspective(img_right, imgrt, Hi, imgrt.size(), INTER_LINEAR);
-    // imgrt = imgrt * 0.5 + img_left * 0.5;
-    imwrite("warpedR.png", imgrt);
+    // #ifdef SAVE_ALL
+    //     Mat img_matches;
+    //     drawMatches(
+    //         gray_left,  keypoints_left,               // left image with its keypoints
+    //         gray_right, keypoints_right,              // right image with its keypoints
+    //         matches,                                 // matches between the keypoints
+    //         img_matches,                             // output image
+    //         Scalar::all(-1),                         // color of matches
+    //         Scalar::all(-1),                         // color of single points
+    //         vector<char>(),                          // mask determining which matches are drawn. If empty
+    //                                                  // all matches are drawn 
+    //         DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS // Single keypoints will not be drawn
+    //     );
+    //     imwrite("matches-0.png", img_matches);
+    // #endif
 
-    cout  << "Simple rendering done" << endl;
 
-    // find two homographies
-    Mat Hl, Hr;
-    if (verbose) { cout  << "Start another RANSAC ... "; }
-    my_homographies(keypoints_left, keypoints_right, matches, Hl, Hr);
-    if (verbose) { cout << "done" << endl; }
 
-    // render the output
-    if (verbose) { cout << "Render ... " << endl; }
-    render(img_left.rows, img_left.cols, img_left, img_right.rows, img_right.cols, img_right, Hl, Hr, "panorama-maxdist.png");
-    cout << "done" << endl;
+    // double max_dist = 0;
+    // double min_dist = numeric_limits<double>::max();
+
+    // // Quick calculation of max and min distances between keypoints
+    // for (int i = 0; i < descriptors_left.rows; i++) {
+    //     double dist = matches[i].distance;
+
+    //     if (dist < min_dist) min_dist = dist;
+    //     if (dist > max_dist) max_dist = dist;
+    // }
+  
+    // cout << "Max dist: " << max_dist << endl;
+    // cout << "Min dist: " << min_dist << endl;
+  
+    // // Draw only "good" matches (i.e. whose distance is less than 2*min_dist,
+    // // or a small arbitary value ( 0.02 ) in the event that min_dist is very
+    // // small)
+    // // radiusMatch() can also be used here.
+  
+    // int j = 0;
+    // for (int i = 0; i < descriptors_left.rows; i++) {
+    //     if (matches[i].distance <= max(8 * min_dist, 0.02)) {
+    //         matches[j++] = matches[i];
+    //     }
+    // }
+    // matches.resize(j);
+
+    // #ifdef SAVE_ALL
+    //     Mat img_matches_nonmax;
+    //     drawMatches(
+    //         gray_left,  keypoints_left,              // left image with its keypoints
+    //         gray_right, keypoints_right,             // right image with its keypoints
+    //         matches,                                 // matches between the keypoints
+    //         img_matches_nonmax,                      // output image
+    //         Scalar::all(-1),                         // color of matches
+    //         Scalar::all(-1),                         // color of single points
+    //         vector<char>(),                          // mask determining which matches are drawn. If empty
+    //                                                  // all matches are drawn 
+    //         DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS // Single keypoints will not be drawn
+    //     );
+    //     imwrite("matches-maxdist.png", img_matches_nonmax);
+    // #endif
+
+
+    // // homography -- OpenCV implementation
+    // cout  << "Start standard RANSAC ..." << endl;
+    // vector<Point2d> points_left;
+    // vector<Point2d> points_right;
+    // for (int i = 0; i < matches.size(); i++) {
+    //     points_left.push_back(keypoints_left[matches[i].queryIdx].pt);
+    //     points_right.push_back(keypoints_right[matches[i].trainIdx].pt);
+    // }
+    // Mat H = findHomography(points_left, points_right, CV_RANSAC);
+    // Mat Hi = H.inv();
+    // cout << " done";
+
+    // // render the output
+    // Mat imglt = img_right.clone();
+    // warpPerspective(img_left, imglt, H, imglt.size(), INTER_LINEAR);
+    // // imglt = imglt * 0.5 + img_right * 0.5;
+    // imwrite("warpedL.png", imglt);
+
+    // Mat imgrt = img_left.clone();
+    // warpPerspective(img_right, imgrt, Hi, imgrt.size(), INTER_LINEAR);
+    // // imgrt = imgrt * 0.5 + img_left * 0.5;
+    // imwrite("warpedR.png", imgrt);
+
+    // cout  << "Simple rendering done" << endl;
+
+    // // find two homographies
+    // Mat Hl, Hr;
+    // if (verbose) { cout  << "Start another RANSAC ... "; }
+    // my_homographies(keypoints_left, keypoints_right, matches, Hl, Hr);
+    // if (verbose) { cout << "done" << endl; }
+
+    // // render the output
+    // if (verbose) { cout << "Render ... " << endl; }
+    // render(img_left.rows, img_left.cols, img_left, img_right.rows, img_right.cols, img_right, Hl, Hr, "panorama-maxdist.png");
+    // cout << "done" << endl;
 
 
     // vector<Point2d> points_left;

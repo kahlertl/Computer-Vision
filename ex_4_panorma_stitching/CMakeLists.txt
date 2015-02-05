@@ -10,6 +10,7 @@ add_executable( panst
     src/ps_main.cpp
     src/render.cpp
     src/saves.cpp
+    src/marriage.cpp
 )
 target_link_libraries( panst ${OpenCV_LIBS} )
 set(CMAKE_CXX_FLAGS "-std=c++0x")

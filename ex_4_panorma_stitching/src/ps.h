@@ -4,7 +4,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/features2d/features2d.hpp>  // KeyPoint
+#include <opencv2/features2d/features2d.hpp>  // KeyPoint, DMatch
 
 // save all intermediate results as images
 #define SAVE_ALL
@@ -38,6 +38,11 @@ std::vector<KEYPOINT> harris(int height, int width, unsigned char *img,
 std::vector<MATCH> matching(int heightl, int widthl, unsigned char *imgl,
                             int heightr, int widthr, unsigned char *imgr,
                             std::vector<KEYPOINT>pointsl, std::vector<KEYPOINT>pointsr, int wsize);
+
+void marriageMatch(const std::vector<std::vector<cv::DMatch>>& acceptor_table,
+                   const std::vector<std::vector<cv::DMatch>>& proposor_table,
+                   const int k,
+                   std::vector<cv::DMatch>& matches);
 
 void mean_filter(int height, int width, double *a, int wsize);
 

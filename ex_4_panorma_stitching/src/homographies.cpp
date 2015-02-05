@@ -57,7 +57,7 @@ void my_homographies(const vector<KeyPoint>& keypoints_left, const vector<KeyPoi
     Hl = findHomography(points_left, points_right, CV_RANSAC);
 
     // iterate
-    for (int it = 0; it < 10; it++) {
+    for (int it = 0; it < 4; it++) {
         // transform the left points and keep the right ones
         points_left.clear();
         points_right.clear();
@@ -95,12 +95,3 @@ void my_homographies(const vector<KeyPoint>& keypoints_left, const vector<KeyPoi
         Hl = findHomography(points_left, points_right, CV_RANSAC);
     }
 }
-
-// points_left.push_back(Point2d(matches[i].xl, matches[i].yl));
-// points_left.push_back(keypoints_left[matches[i].queryIdx].pt);
-
-// points_right.push_back(Point2d(matches[i].xr, matches[i].yr));
-// points_right.push_back(keypoints_right[matches[i].trainIdx].pt);
-
-// Point2d(matches[i].xl, matches[i].yl) = keypoints_left[matches[i].queryIdx].pt;
-// Point2d(matches[i].xr, matches[i].yr) = keypoints_right[matches[i].trainIdx].pt

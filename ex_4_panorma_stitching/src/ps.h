@@ -9,6 +9,12 @@
 // save all intermediate results as images
 #define SAVE_ALL
 
+#ifndef VERBOSE
+    const bool verbose = true;
+#else
+    const bool verbose = false;
+#endif
+
 #define INDEX(i,j,c) ((((i)*width)+(j))*3+(c))
 
 typedef struct {

@@ -55,22 +55,22 @@ vector<KEYPOINT> harris(int height, int width, unsigned char *img,
         }
     }
 
-#ifdef SAVE_ALL
-    save_double_as_image(height, width, a, (string("a") + string(name) + string(".png")).c_str());
-    save_double_as_image(height, width, b, (string("b") + string(name) + string(".png")).c_str());
-    save_double_as_image(height, width, c, (string("c") + string(name) + string(".png")).c_str());
-#endif
+    #ifdef SAVE_ALL
+        save_double_as_image(height, width, a, (string("a") + string(name) + string(".png")).c_str());
+        save_double_as_image(height, width, b, (string("b") + string(name) + string(".png")).c_str());
+        save_double_as_image(height, width, c, (string("c") + string(name) + string(".png")).c_str());
+    #endif
 
     // a, b, c are computed, integrate now
     mean_filter(height, width, a, wsize_sum);
     mean_filter(height, width, b, wsize_sum);
     mean_filter(height, width, c, wsize_sum);
 
-#ifdef SAVE_ALL
-    save_double_as_image(height, width, a, (string("aa") + string(name) + string(".png")).c_str());
-    save_double_as_image(height, width, b, (string("bb") + string(name) + string(".png")).c_str());
-    save_double_as_image(height, width, c, (string("cc") + string(name) + string(".png")).c_str());
-#endif
+    #ifdef SAVE_ALL
+        save_double_as_image(height, width, a, (string("aa") + string(name) + string(".png")).c_str());
+        save_double_as_image(height, width, b, (string("bb") + string(name) + string(".png")).c_str());
+        save_double_as_image(height, width, c, (string("cc") + string(name) + string(".png")).c_str());
+    #endif
 
     // cornerness
     double *e = new double[height * width];
@@ -81,9 +81,9 @@ vector<KEYPOINT> harris(int height, int width, unsigned char *img,
         }
     }
 
-#ifdef SAVE_ALL
-    save_double_as_image(height, width, e, (string("e") + string(name) + string(".png")).c_str());
-#endif
+    #ifdef SAVE_ALL
+        save_double_as_image(height, width, e, (string("e") + string(name) + string(".png")).c_str());
+    #endif
 
     vector<KEYPOINT> points = local_maxima(height, width, e, wsize_loc, name);
 

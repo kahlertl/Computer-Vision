@@ -107,3 +107,8 @@ processors), example: /land_normal/IMG_224[12]_s.JPG
 | Linux, QtCreator, Debug         | 37 sec                     |
 | Linux, QtCreator, Release       | 17 sec                     |
 | Linux, Makefile (release)       | 17 sec                     |
+
+
+## References
+
+ * [Rosten06](http://computer-vision-talks.com/articles/2011-01-04-comparison-of-the-opencv-feature-detection-algorithms/)

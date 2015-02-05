@@ -1,7 +1,6 @@
 // standard stuff
 #include <stdio.h>
 #include <iostream>
-using namespace std;
 #include <stdlib.h>
 #include <time.h>
 #include <fstream>
@@ -10,9 +9,12 @@ using namespace std;
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-using namespace cv;
 
 #include "ps.h"
+
+using namespace std;
+using namespace cv;
+
 
 #define RESCALE_MINMAX
 
@@ -96,7 +98,7 @@ void save_matches_as_image(int heightl, int widthl, unsigned char *imgl,
 }
 
 void save_keypoints_as_image(int height, int width, unsigned char *img,
-                             vector<KEYPOINT> points, const char *name)
+                             vector<KEYPOINT>& points, const char *name)
 {
     Mat A(height, width, CV_8UC3);
     unsigned char *out = A.ptr(0);
@@ -104,8 +106,20 @@ void save_keypoints_as_image(int height, int width, unsigned char *img,
     for (unsigned int i = 0; i < points.size(); i++) {
         int x = (int)(points[i].x + 0.5);
         int y = (int)(points[i].y + 0.5);
-        circle(A, Point(x, y), 5, CV_RGB(0, 0, 0));
+        circle(A, Point(x, y), 5, CV_RGB(255, 0, 0));
     }
 
     imwrite(name, A);
+}
+
+
+void save_keypoints_as_image(const Mat& image, const vector<KeyPoint>& keypoints, const char* filename)
+{
+    Mat out;
+    Scalar color = { 255, 0, 0 };
+
+    drawKeypoints(image, keypoints, out, color, DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+
+    // store image
+    imwrite(filename, out);
 }

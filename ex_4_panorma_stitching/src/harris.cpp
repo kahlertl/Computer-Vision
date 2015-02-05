@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <iostream>
-using namespace std;
 #include "ps.h"
+
+using namespace std;
 
 vector<KEYPOINT> harris(int height, int width, unsigned char *img,
                         int wsize_sum, int wsize_loc, const char *name)

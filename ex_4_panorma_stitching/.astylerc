@@ -1,0 +1,9 @@
+style=kr                # use K&R formatting style
+indent=spaces
+unpad-paren
+pad-header
+pad-oper
+# indent-preproc-block
+# indent-preproc-cond
+keep-one-line-blocks
+keep-one-line-statements

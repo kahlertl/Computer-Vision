@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <iostream>
 #include <set>
-#include "ps.h"
+
+#include "panorama.h"
 
 using namespace std;
 using namespace cv;

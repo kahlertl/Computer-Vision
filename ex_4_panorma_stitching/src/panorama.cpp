@@ -1,12 +1,11 @@
-﻿// standard stuff
-#include <stdio.h>
+﻿#include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
 #include <time.h>
 #include <fstream>
 #include <limits>
 
-// opencv
+// openCV
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -15,7 +14,7 @@
 #include <opencv2/nonfree/features2d.hpp>     // SurfFeatureDetector 
 
 // the header for all functions/macros of this project
-#include "ps.h"
+#include "panorma.hpp"
 
 using namespace std;
 using namespace cv;

@@ -5,7 +5,7 @@
 
 #include <opencv2/features2d/features2d.hpp>  // DMatch
 
-#include "ps.h"
+#include "panorama.h"
 
 using namespace std;
 using namespace cv;

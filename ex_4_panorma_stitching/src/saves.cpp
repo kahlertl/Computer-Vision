@@ -10,7 +10,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "ps.h"
+#include "panorma.hpp"
 
 using namespace std;
 using namespace cv;

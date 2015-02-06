@@ -115,8 +115,6 @@ void marriageMatch(const Mat& descriptors_left,
     // Ensure the matches list is empty
     matches.clear();
 
-    if (verbose) { cout << "Resolve matches ... " << flush << endl; };
-
     for (int i = 0; i < engagements.size(); i++) {
         if (engagements[i] != NOT_ENGAGED) {
             // cout << engagements[i] << endl;
@@ -142,6 +140,4 @@ void marriageMatch(const Mat& descriptors_left,
             // }
         }
     }
-
-    if (verbose) { cout << "Done with " << matches.size() << flush << endl; }
 }

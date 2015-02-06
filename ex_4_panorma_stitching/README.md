@@ -1,112 +1,98 @@
 # Panorama Stitching Code for the third Exercise "Computer Vision" WS2014/2015
 
-## Content
+The following modifications was applied to the project:
 
- - example images + results:
-    * [images](images/)
-    * [inf](inf/)
-    * [land_col](land_col/)
-    * [land_normal](land_normal/)
-    * [land_small_overlap](land_small_overlap/)
- - sources (*.cpp, *.h)
-    * [src/](src/)
+ * Many functions was replaced by OpenCV built-in functions.
+ * We use a stable marriage matching approach. The matching takes a the k-nearest-
+   neighbors found by a SURF filter for each keypoint and find a stable matching
+   between all the keypoints.
+ * We apply a quality threshold for every match. That means, "bad" matches are
+   removed.
 
-**Note!** Actually I tested all the stuff under OSX 10.10.1 with gcc 4.2.1,
-OpenCV 2.4.10 using "make" only. The information below is one year old (WS2013/2014):
-
-All the stuff was tested under:
-
- * Windows 8.1, OpenCV 2.4.7, Microsoft Visual Studio 2010, MSVC 2010 compiler 
-   (32-bit), QtCreator (Qt 5.2.0 for Windows 32-bit, VS 2010)
- * Linux Mint 15 (Mate), OpenCV 2.4.2, gcc 4.7.3 compiler, using Makefile and 
-   QtCreator 2.7.0 (Qt 5.0.1, 64-bit)
-
-
-**For Windows users:**
-
- - OpenCV fails to compile with the actual MSVC 2012 Compiler
- - don't forget to set correct paths to the include- and library-directories
- - don't forget to adjust the System PATH in order to find the necessary dll-s
-
-
-## Running times
-
-Characteristic running times for an i7-2620M CPU 2.70GHz (dual-core, 4 logical 
-processors), example: /land_normal/IMG_224[12]_s.JPG
-
-
-| System                          | running times              |
-| ------------------------------- | -------------------------- |
-| Windows, QtCreator, Debug       | 42 sec                     |
-| Windows, QtCreator, Release     | could not load images (?)  |
-| Windows, Visual Studio, Debug   | 63 sec                     |
-| Windows, Visual Studio, Release | 18 sec                     |
-| Linux, QtCreator, Debug         | 37 sec                     |
-| Linux, QtCreator, Release       | 17 sec                     |
-| Linux, Makefile (release)       | 17 sec                     |
-# Panorama Stitching Code for the third Exercise "Computer Vision" WS2014/2015
-
-## Content
-
- - example images + results:
-    * [images](images/)
-    * [inf](inf/)
-    * [land_col](land_col/)
-    * [land_normal](land_normal/)
-    * [land_small_overlap](land_small_overlap/)
- - sources (*.cpp, *.h)
-    * [src/](src/)
-
-**Note!** Actually I tested all the stuff under OSX 10.10.1 with gcc 4.2.1,
-OpenCV 2.4.10 using "make" only. The information below is one year old (WS2013/2014):
 
 ## Build
 
-If you prefere to use `cmake` you can run:
+CMake is used as build tool-chain
 
 ```bash
+# The OpenCV_DIR variable is only required if your OpenCV library is
+# not globally available
 $ cmake . -DOpenCV_DIR=/path/to/opencv/release
-$ make -f Makefile
-```
-
-Otherwise - if OpenCV is globally installed on your system - you can run the hand
-written Makefile
-
-```bash
-$ cd makefile/
 $ make
 ```
 
-All the stuff was tested under:
-
- * Windows 8.1, OpenCV 2.4.7, Microsoft Visual Studio 2010, MSVC 2010 compiler 
-   (32-bit), QtCreator (Qt 5.2.0 for Windows 32-bit, VS 2010)
- * Linux Mint 15 (Mate), OpenCV 2.4.2, gcc 4.7.3 compiler, using Makefile and 
-   QtCreator 2.7.0 (Qt 5.0.1, 64-bit)
-
-
-**For Windows users:**
-
- - OpenCV fails to compile with the actual MSVC 2012 Compiler
- - don't forget to set correct paths to the include- and library-directories
- - don't forget to adjust the System PATH in order to find the necessary dll-s
-
-
 ## Running times
 
-Characteristic running times for an i7-2620M CPU 2.70GHz (dual-core, 4 logical 
-processors), example: /land_normal/IMG_224[12]_s.JPG
+The test environment was a Ubuntu 14.04 running as VirtualBox guest.
+
+Characteristic:
+
+  * AMD Phenom II X6 1100T CPU 3.30GHz (6 logical cores)
+  * 3 cores was assigned to the guest system
+
+**Original**:
+compiled without `SAVE_ALL`
+
+    $ perf stat -- ./panst images/img_0625.jpg images/img_0626.jpg 
+
+    Images loaded. wsize_sum=8, wsize_loc=22, wsize_match=40
+    Start Harris detector ...
+    272 keypoints in the left image
+    295 keypoints in the right image
+    Start matching ...
+    127 matching pairs found
+    Start standard RANSAC ... done
+    Simple rendering done
+    Start another RANSAC ... done
+    Complex rendering done
 
 
-| System                          | running times              |
-| ------------------------------- | -------------------------- |
-| Windows, QtCreator, Debug       | 42 sec                     |
-| Windows, QtCreator, Release     | could not load images (?)  |
-| Windows, Visual Studio, Debug   | 63 sec                     |
-| Windows, Visual Studio, Release | 18 sec                     |
-| Linux, QtCreator, Debug         | 37 sec                     |
-| Linux, QtCreator, Release       | 17 sec                     |
-| Linux, Makefile (release)       | 17 sec                     |
+     Performance counter stats for './panst images/img_0625.jpg images/img_0626.jpg':
+
+          60158.803310 task-clock (msec)         #    0.995 CPUs utilized          
+                 1,684 context-switches          #    0.028 K/sec                  
+                   153 cpu-migrations            #    0.003 K/sec                  
+                17,412 page-faults               #    0.289 K/sec                        
+
+          60.438178012 seconds time elapsed
+
+**Modifications**:
+compiled without `VERBOSE`
+
+    $ perf stat -- ./panorama images/img_0625.jpg images/img_0626.jpg 
+    Detect keypoints ...
+    Non maximum suppression ...
+      452 keypoints left
+      399 keypoints right
+    Compute feature descriptors ...
+    Matching ...
+    342 matches
+    Remove bad matches ...
+    Done
+    Start RANSAC ... done
+    Render ... 
+    done
+
+     Performance counter stats for './panorama images/img_0625.jpg images/img_0626.jpg':
+
+          41578.686522 task-clock (msec)         #    0.999 CPUs utilized          
+                   340 context-switches          #    0.008 K/sec                  
+                    56 cpu-migrations            #    0.001 K/sec                  
+                29,600 page-faults               #    0.712 K/sec                  
+
+          41.600253332 seconds time elapsed
+
+
+## Result
+
+The running time tests show that the modifications improve the runtime of the
+program. We think, that the runtime improvement comes from the usage of the
+OpenCV built-in functions, rather from the stable marriage matching.
+
+The final output was not was not improved. That means, 
+We think, that the error got from matching of multiple keypoints in on image to the same
+keypoint in the other image, is not that relevant. The threshold filter would remove
+the "wrong" matches anyway.
 
 
 ## References

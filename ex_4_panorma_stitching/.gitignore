@@ -1,7 +1,5 @@
-!makefile/Makefile
-
 # Binary
-panst
+panorama
 
 # Output images
 aL.png

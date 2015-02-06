@@ -9,7 +9,9 @@
 // saves.cpp: save_double_as_image() will rescale the input to [0, 255]
 #define RESCALE_MINMAX
 
-#ifndef VERBOSE
+#define VERBOSE
+
+#ifdef VERBOSE
     const bool verbose = true;
 #else
     const bool verbose = false;

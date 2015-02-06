@@ -46,6 +46,7 @@ int main(int argc, char **argv)
     cvtColor(img_left,  gray_left,  CV_BGR2GRAY);
     cvtColor(img_right, gray_right, CV_BGR2GRAY);
 
+
     // Feature / keypoint detection
     // 
     cout << "Detect keypoints ..." << endl;
@@ -58,17 +59,22 @@ int main(int argc, char **argv)
     detector.detect(gray_left, keypoints_left);
     detector.detect(gray_right, keypoints_right);
 
-    cout << "Non maximum suppression ..." << endl;
 
     // non-maximum-suppression
     // 
+    cout << "Non maximum suppression ..." << endl;
+
     suppressNonMax(gray_left.cols,  gray_left.rows,  keypoints_left,  gray_left.cols  * 0.01); // TODO parameter for this scaling factor
     suppressNonMax(gray_right.cols, gray_right.rows, keypoints_right, gray_right.cols * 0.01);
+
+    cout << "  " <<  keypoints_left.size()  << " keypoints left"  << endl
+         << "  " <<  keypoints_right.size() << " keypoints right" << endl;
 
     if (verbose) {
         save_keypoints_as_image(gray_left,  keypoints_left,  "keypointsL.png");
         save_keypoints_as_image(gray_right, keypoints_right, "keypointsR.png");
     }
+
 
     // Calculate descriptors (alias feature vectors)
     // 
@@ -89,6 +95,7 @@ int main(int argc, char **argv)
 
     cout << "Matching ..." << endl;
 
+    // The usage of the stable marriage matching does not improve the result panorama
     // matcher.match(descriptors_left, descriptors_right, matches);
     marriageMatch(descriptors_left, descriptors_right, matcher, 10, matches);
 
@@ -108,13 +115,14 @@ int main(int argc, char **argv)
         imwrite("matches.png", img_matches);
     }
 
+    cout << matches.size() << " matches" << endl;
 
     // Apply quality threshold on the matches
     // 
     double max_dist = 0;
     double min_dist = numeric_limits<double>::max();
 
-    if (verbose) { cout << "Remove bad matches ..." << endl; }
+    cout << "Remove bad matches ..." << endl;
 
     // Quick calculation of max and min distances between keypoints
     for (int i = 0; i < matches.size(); i++) {
@@ -157,21 +165,21 @@ int main(int argc, char **argv)
         imwrite("matches-maxdist.png", img_matches_nonmax);
     }
 
-    if (verbose) { cout << "Done" << endl; }
+    cout << "Done" << endl;
 
 
     // find two homographies
     // 
-    if (verbose) { cout  << "Start RANSAC ... "; }
+    cout  << "Start RANSAC ... ";
     Mat Hl, Hr;
     findHomographyLR(keypoints_left, keypoints_right, matches, Hl, Hr);
-    if (verbose) { cout << "done" << endl; }
+    cout << "done" << endl;
 
     // render the output
     // 
-    if (verbose) { cout << "Render ... " << endl; }
+    cout << "Render ... " << endl;
     render(img_left.rows, img_left.cols, img_left, img_right.rows, img_right.cols, img_right, Hl, Hr, "panorama-maxdist.png");
-    if (verbose) { cout << "done" << endl; }
+    cout << "done" << endl;
 
     return 0;
 }

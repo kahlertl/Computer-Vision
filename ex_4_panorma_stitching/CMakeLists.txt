@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
-project( panst )
+project( panorama )
 find_package( OpenCV REQUIRED )
-add_executable( panst
+add_executable( panorama
     src/panorama.cpp
     src/homographies.cpp
     src/local_maxima.cpp
@@ -9,5 +9,5 @@ add_executable( panst
     src/render.cpp
     src/saves.cpp
 )
-target_link_libraries( panst ${OpenCV_LIBS} )
+target_link_libraries( panorama ${OpenCV_LIBS} )
 set(CMAKE_CXX_FLAGS "-std=c++0x")

@@ -10,7 +10,7 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/features2d/features2d.hpp>  // DMatch
 
-#include "panorama.h"
+#include "panorama.hpp"
 
 using namespace std;
 using namespace cv;

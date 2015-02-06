@@ -13,7 +13,7 @@ using namespace std;
 using namespace cv;
 #include "opencv2/calib3d/calib3d.hpp"
 
-#include "panorma.hpp"
+#include "panorama.hpp"
 
 double get_weight(int i, int j, int height, int width)
 {

@@ -2,7 +2,7 @@
 #include <iostream>
 #include <set>
 
-#include "panorama.h"
+#include "panorama.hpp"
 
 using namespace std;
 using namespace cv;

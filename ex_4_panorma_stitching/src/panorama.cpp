@@ -14,7 +14,7 @@
 #include <opencv2/nonfree/features2d.hpp>     // SurfFeatureDetector 
 
 // the header for all functions/macros of this project
-#include "panorma.hpp"
+#include "panorama.hpp"
 
 using namespace std;
 using namespace cv;

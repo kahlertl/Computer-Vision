@@ -1,100 +1,147 @@
+#include <vector>
+#include <tuple>
 #include <iostream>
-using namespace std;
+#include <queue>
+
+#include <opencv2/features2d/features2d.hpp>  // DMatch
+
 #include "ps.h"
 
-double quality(int heightl, int widthl, unsigned char *imgl, int il, int jl,
-               int heightr, int widthr, unsigned char *imgr, int ir, int jr,
-               int wsize)
+using namespace std;
+using namespace cv;
+
+static const int NOT_ENGAGED = -1;
+
+/**
+ * Search for a stable marriage between the feature descriptors on the left
+ * and right image.
+ *
+ * @param descriptors_left
+ * @param descriptors_right
+ * @param matcher           Matcher that is used to find the k nearest neighbors
+ *                          for a single feature descriptor
+ * @param k                 Count of nearest neighbors that should be used for
+ *                          each single feature descriptor
+ * @param matches           Output vector with stable marriage DMatches
+ */
+void marriageMatch(const Mat& descriptors_left,
+                   const Mat& descriptors_right,
+                   DescriptorMatcher& matcher,
+                   const int k,
+                   vector<DMatch>& matches)
 {
+    vector<vector<DMatch>> acceptor_table;
+    vector<vector<DMatch>> proposor_table;
 
-    // filter out points that are close to borders
-    if (il - wsize < 0) return numeric_limits<double>::max();
-    if (ir - wsize < 0) return numeric_limits<double>::max();
-    if (il + wsize > heightl - 1) return numeric_limits<double>::max();
-    if (ir + wsize > heightr - 1) return numeric_limits<double>::max();
-    if (jl - wsize < 0) return numeric_limits<double>::max();
-    if (jr - wsize < 0) return numeric_limits<double>::max();
-    if (jl + wsize > widthl - 1) return numeric_limits<double>::max();
-    if (jr + wsize > widthr - 1) return numeric_limits<double>::max();
+    matcher.knnMatch(descriptors_left, descriptors_right, acceptor_table, k);
+    matcher.knnMatch(descriptors_right, descriptors_left, proposor_table, k);
 
-    double q = 0.;
-    for (int di = -wsize; di <= wsize; di++) {
-        for (int dj = -wsize; dj <= wsize; dj++) {
-            int indexl = ((il + di) * widthl + jl + dj) * 3;
-            int indexr = ((ir + di) * widthr + jr + dj) * 3;
-            double dr = (double)imgl[indexl] - (double)imgr[indexr];
-            double dg = (double)imgl[indexl + 1] - (double)imgr[indexr + 1];
-            double db = (double)imgl[indexl + 2] - (double)imgr[indexr + 2];
-            q += dr * dr + dg * dg + db * db;
+    // Indicates that acceptor i is currently enganged
+    // to the proposer v[i]
+    vector<int> engagements(acceptor_table.size(), NOT_ENGAGED);
+
+    // queue of proposers that are not currently engaged
+    queue<int> free_proposers;
+
+    // mark every proposer as free
+    for (int i = 0; i < proposor_table.size(); i++) {
+        free_proposers.push(i);
+    }
+
+    // next[i] is the index of the accecptor to whom
+    // proposer[i] has not yet proposed
+    vector<int> next(proposor_table.size(), 0);
+
+    while (!free_proposers.empty()) {
+        int p = free_proposers.front();
+        free_proposers.pop();
+
+        // Check if there are any further prefered
+        // acceptors for this proposer
+        if (next[p] >= proposor_table[p].size()) {
+            continue;
         }
-    }
-    return q;
-}
 
-vector<MATCH> matching(int heightl, int widthl, unsigned char *imgl,
-                       int heightr, int widthr, unsigned char *imgr,
-                       vector<KEYPOINT> pointsl, vector<KEYPOINT> pointsr, int wsize)
-{
-    int nl = pointsl.size();
-    int nr = pointsr.size();
-    double *ql = new double[nl];
-    double *qr = new double[nr];
-    int *pl = new int[nl];
-    int *pr = new int[nr];
+        assert(p < proposor_table.size());
+        int a = proposor_table[p][next[p]++].trainIdx;
 
-    for (int i = 0; i < nl; i++) {
-        ql[i] = numeric_limits<double>::max();
-        pl[i] = -1;
-    }
-    for (int i = 0; i < nr; i++) {
-        qr[i] = numeric_limits<double>::max();
-        pr[i] = -1;
-    }
+        assert(a < engagements.size());
 
-    for (int il = 0; il < nl; il++) {
-        for (int ir = 0; ir < nr; ir++) {
-            int yl = (int)(pointsl[il].y + 0.5);
-            int xl = (int)(pointsl[il].x + 0.5);
-            int yr = (int)(pointsr[ir].y + 0.5);
-            int xr = (int)(pointsr[ir].x + 0.5);
-            double q = quality(heightl, widthl, imgl, yl, xl, heightr, widthr, imgr, yr, xr, wsize);
-            if (q < ql[il]) {
-                ql[il] = q;
-                pl[il] = ir;
+        // if the acceptor has not been engaged yet,
+        // the proposal get immediately accepted
+        if (engagements[a] == NOT_ENGAGED) {
+            // It is important to check, if the current propser
+            // is contained in the preference list of the acceptor
+            for (int i = 0; i < acceptor_table[a].size(); i++) {
+
+                assert(i < acceptor_table[a].size());
+
+                if (acceptor_table[a][i].trainIdx == p) {
+                    engagements[a] = p;
+                    break;
+                }
             }
-            if (q < qr[ir]) {
-                qr[ir] = q;
-                pr[ir] = il;
+            // The proposer was not in the preference list. Therefore
+            // the proposer stays free
+            if (engagements[a] == NOT_ENGAGED) {
+                free_proposers.push(p);
+            }
+        } else {
+            // the current fiance of the 
+            int fiance = engagements[a];
+
+            for (int i = 0; i < acceptor_table[a].size(); i++) {
+                assert(a == acceptor_table[a][i].queryIdx);
+
+                int preference = acceptor_table[a][i].trainIdx;
+
+                // the fiance has a higher preference
+                // for the acceptor
+                if (preference == fiance) {
+                    free_proposers.push(p);
+                    break;
+                }
+                // the current proposer has a higher preference
+                // than the fiance
+                else if (preference == p) {
+                    engagements[a] = p;
+                    free_proposers.push(fiance);
+                    break;
+                }
             }
         }
     }
 
-    // cross-check
-    for (int il = 0; il < nl; il++) {
-        if (pl[il] != -1) {
-            if (pr[pl[il]] != il) pl[il] = -1;
-        }
-    }
-    for (int ir = 0; ir < nr; ir++) {
-        if (pr[ir] != -1) {
-            if (pl[pr[ir]] != ir) pr[ir] = -1;
+    // Ensure the matches list is empty
+    matches.clear();
+
+    if (verbose) { cout << "Resolve matches ... " << flush << endl; };
+
+    for (int i = 0; i < engagements.size(); i++) {
+        if (engagements[i] != NOT_ENGAGED) {
+            // cout << engagements[i] << endl;
+
+            // ensure that the acceptor has this number of
+            // neighbors
+            // if (i < acceptor_table[i].size()) {
+
+                assert(i < acceptor_table.size());
+
+                // search for the DMatch where the related
+                // train index (index of the keypoint in the other
+                // image) equals the index of the husband
+                for (int j = 0; j < acceptor_table[i].size(); j++) {
+
+                    // cout << "  " << acceptor_table[i][j].trainIdx << endl;
+
+                    if (acceptor_table[i][j].trainIdx == engagements[i]) {
+                        matches.push_back(acceptor_table[i][j]);
+                        break;
+                    }
+                }
+            // }
         }
     }
 
-    // fill
-    vector<MATCH> ret;
-    ret.clear();
-    for (int il = 0; il < nl; il++) {
-        if (pl[il] != -1) {
-            MATCH pair;
-            pair.xl = pointsl[il].x;
-            pair.yl = pointsl[il].y;
-            pair.xr = pointsr[pl[il]].x;
-            pair.yr = pointsr[pl[il]].y;
-            pair.value = ql[il];
-            ret.push_back(pair);
-        }
-    }
-
-    return ret;
+    if (verbose) { cout << "Done with " << matches.size() << flush << endl; }
 }

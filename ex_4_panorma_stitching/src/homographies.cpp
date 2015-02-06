@@ -16,8 +16,8 @@ using namespace std;
 using namespace cv;
 
 
-void my_homographies(const vector<KeyPoint>& keypoints_left, const vector<KeyPoint>& keypoints_right,
-                     const vector<DMatch>& matches, Mat& Hl, Mat& Hr)
+void findHomographyLR(const vector<KeyPoint>& keypoints_left, const vector<KeyPoint>& keypoints_right,
+                      const vector<DMatch>& matches, Mat& Hl, Mat& Hr)
 {
 
     // find "usual" hopmgraphy: left->right

@@ -6,8 +6,8 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/features2d/features2d.hpp>  // KeyPoint, DMatch
 
-// save all intermediate results as images
-#define SAVE_ALL
+// saves.cpp: save_double_as_image() will rescale the input to [0, 255]
+#define RESCALE_MINMAX
 
 #ifndef VERBOSE
     const bool verbose = true;
@@ -15,39 +15,11 @@
     const bool verbose = false;
 #endif
 
-#define INDEX(i,j,c) ((((i)*width)+(j))*3+(c))
-
-typedef struct {
-    double x;
-    double y;
-    double value;
-} KEYPOINT;
-
-typedef struct {
-    double xl;
-    double yl;
-    double xr;
-    double yr;
-    double value;
-} MATCH;
-
-std::vector<KEYPOINT> harris(int height, int width, unsigned char *img,
-                             int wsize_sum, int wsize_loc, const char *name);
-
-
-std::vector<MATCH> matching(int heightl, int widthl, unsigned char *imgl,
-                            int heightr, int widthr, unsigned char *imgr,
-                            std::vector<KEYPOINT>pointsl, std::vector<KEYPOINT>pointsr, int wsize);
-
 void marriageMatch(const cv::Mat& descriptors_left,
                    const cv::Mat& descriptors_right,
                    cv::DescriptorMatcher& matcher,
                    const int k,
                    cv::vector<cv::DMatch>& matches);
-
-void mean_filter(int height, int width, double *a, int wsize);
-
-std::vector<KEYPOINT> local_maxima(int height, int width, double *e, int wsize, const char *name);
 
 void suppressNonMax(int width, int height, std::vector<cv::KeyPoint>& keypoints, int radius);
 
@@ -56,12 +28,6 @@ void suppressNonMax(int width, int height, std::vector<cv::KeyPoint>& keypoints,
 // 
 
 void save_double_as_image(int height, int width, double *array, const char *name);
-
-void save_matches_as_image(int heightl, int widthl, unsigned char *imgl,
-                           int heightr, int widthr, unsigned char *imgr,
-                           std::vector<MATCH> matches, const char *name);
-
-void save_keypoints_as_image(int height, int width, unsigned char *img, std::vector<KEYPOINT>& points, const char *name);
 
 void save_keypoints_as_image(const cv::Mat& image, const std::vector<cv::KeyPoint>& keypoints, const char* filename);
 
@@ -78,7 +44,9 @@ void render(int heightl, int widthl, cv::Mat &imgl,
             int heightr, int widthr, cv::Mat &imgr,
             cv::Mat Hl, cv::Mat Hr, const char *name);
 
-void my_homographies(const std::vector<cv::KeyPoint>& keypoints_left, const std::vector<cv::KeyPoint>& keypoints_right,
-                     const std::vector<cv::DMatch>& matches, cv::Mat& Hl, cv::Mat& Hr);
+void findHomographyLR(const std::vector<cv::KeyPoint>& keypoints_left,
+                      const std::vector<cv::KeyPoint>& keypoints_right,
+                      const std::vector<cv::DMatch>& matches,
+                      cv::Mat& Hl, cv::Mat& Hr);
 
 #endif

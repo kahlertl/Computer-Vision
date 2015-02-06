@@ -39,9 +39,11 @@ std::vector<MATCH> matching(int heightl, int widthl, unsigned char *imgl,
                             int heightr, int widthr, unsigned char *imgr,
                             std::vector<KEYPOINT>pointsl, std::vector<KEYPOINT>pointsr, int wsize);
 
-void marriageMatch(const std::vector<std::vector<cv::DMatch>>& acceptor_table,
-                   const std::vector<std::vector<cv::DMatch>>& proposor_table,
-                   std::vector<cv::DMatch>& matches);
+void marriageMatch(const cv::Mat& descriptors_left,
+                   const cv::Mat& descriptors_right,
+                   cv::DescriptorMatcher& matcher,
+                   const int k,
+                   cv::vector<cv::DMatch>& matches);
 
 void mean_filter(int height, int width, double *a, int wsize);
 

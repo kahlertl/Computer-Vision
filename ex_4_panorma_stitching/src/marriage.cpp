@@ -14,10 +14,18 @@ static const int NOT_ENGAGED = -1;
  * Returns a stable marriage in the form an int array v,
  * where v[i] is the man married to woman i.
  */
-void marriageMatch(const vector<vector<DMatch>>& acceptor_table,
-                   const vector<vector<DMatch>>& proposor_table,
+void marriageMatch(const Mat& descriptors_left,
+                   const Mat& descriptors_right,
+                   DescriptorMatcher& matcher,
+                   const int k,
                    vector<DMatch>& matches)
 {
+    vector<vector<DMatch>> acceptor_table;
+    vector<vector<DMatch>> proposor_table;
+
+    matcher.knnMatch(descriptors_left, descriptors_right, acceptor_table, 200);
+    matcher.knnMatch(descriptors_right, descriptors_left, proposor_table, 200);
+
     // Indicates that acceptor i is currently enganged
     // to the proposer v[i]
     vector<int> engagements(acceptor_table.size(), NOT_ENGAGED);

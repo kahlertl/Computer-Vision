@@ -79,8 +79,8 @@ int main(int argc, char **argv)
 
     // non-maximum-suppression
     // 
-    suppressNonMax(gray_left.cols,  gray_left.rows,  keypoints_left,  gray_left.cols  * 0.01); // TODO parameter for this scaling factor
-    suppressNonMax(gray_right.cols, gray_right.rows, keypoints_right, gray_right.cols * 0.01);
+    // suppressNonMax(gray_left.cols,  gray_left.rows,  keypoints_left,  gray_left.cols  * 0.01); // TODO parameter for this scaling factor
+    // suppressNonMax(gray_right.cols, gray_right.rows, keypoints_right, gray_right.cols * 0.01);
 
     #ifdef SAVE_ALL
         save_keypoints_as_image(gray_left,  keypoints_left,  "keypointsL.png");
@@ -110,9 +110,9 @@ int main(int argc, char **argv)
     cout << "Matching ..." << endl;
 
     // matcher.match(descriptors_left, descriptors_right, matches);
-
-    matcher.knnMatch(descriptors_left, descriptors_right, matches_left_right, 200);
-    matcher.knnMatch(descriptors_left, descriptors_right, matches_right_left, 200);
+    
+    matcher.knnMatch(descriptors_left, descriptors_right, matches_left_right, 20);
+    matcher.knnMatch(descriptors_right, descriptors_left, matches_right_left, 20);
 
     marriageMatch(matches_left_right, matches_right_left, matches);
 

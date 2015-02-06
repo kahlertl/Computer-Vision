@@ -20,7 +20,7 @@ void marriageMatch(const vector<vector<DMatch>>& acceptor_table,
 {
     // Indicates that acceptor i is currently enganged
     // to the proposer v[i]
-    vector<int> engagements(proposor_table.size(), NOT_ENGAGED);
+    vector<int> engagements(acceptor_table.size(), NOT_ENGAGED);
 
     // queue of proposers that are not currently engaged
     queue<int> free_proposers;
@@ -44,7 +44,10 @@ void marriageMatch(const vector<vector<DMatch>>& acceptor_table,
             continue;
         }
 
+        assert(p < proposor_table.size());
         int a = proposor_table[p][next[p]++].trainIdx;
+
+        assert(a < engagements.size());
 
         // if the acceptor has not been engaged yet,
         // the proposal get immediately accepted
@@ -52,6 +55,9 @@ void marriageMatch(const vector<vector<DMatch>>& acceptor_table,
             // It is important to check, if the current propser
             // is contained in the preference list of the acceptor
             for (int i = 0; i < acceptor_table[a].size(); i++) {
+
+                assert(i < acceptor_table[a].size());
+
                 if (acceptor_table[a][i].trainIdx == p) {
                     engagements[a] = p;
                     break;
@@ -90,7 +96,7 @@ void marriageMatch(const vector<vector<DMatch>>& acceptor_table,
 
     matches.clear();
 
-    cout << "Resolve matches ... " << endl;
+    cout << "Resolve matches ... " << flush << endl;
 
     for (int i = 0; i < engagements.size(); i++) {
         if (engagements[i] != NOT_ENGAGED) {

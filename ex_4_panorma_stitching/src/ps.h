@@ -41,7 +41,6 @@ std::vector<MATCH> matching(int heightl, int widthl, unsigned char *imgl,
 
 void marriageMatch(const std::vector<std::vector<cv::DMatch>>& acceptor_table,
                    const std::vector<std::vector<cv::DMatch>>& proposor_table,
-                   const int k,
                    std::vector<cv::DMatch>& matches);
 
 void mean_filter(int height, int width, double *a, int wsize);

@@ -75,10 +75,6 @@ int main(int argc, char **argv)
     detector.detect(gray_left, keypoints_left);
     detector.detect(gray_right, keypoints_right);
 
-    // // render() gets a seg fault error
-    // FAST(gray_left,  keypoints_left,  50, true);
-    // FAST(gray_right, keypoints_right, 50, true);
-    
     cout << "Non maximum suppression ..." << endl;
 
     // non-maximum-suppression
@@ -109,83 +105,73 @@ int main(int argc, char **argv)
     // vector<DMatch> matches;
     vector<vector<DMatch>> matches_left_right;
     vector<vector<DMatch>> matches_right_left;
+    vector<DMatch> matches;
 
     cout << "Matching ..." << endl;
 
     // matcher.match(descriptors_left, descriptors_right, matches);
-    matcher.knnMatch(descriptors_left, descriptors_right, matches_left_right, 5);
-    matcher.knnMatch(descriptors_left, descriptors_right, matches_right_left, 5);
 
-    vector<DMatch> matches;
+    matcher.knnMatch(descriptors_left, descriptors_right, matches_left_right, 200);
+    matcher.knnMatch(descriptors_left, descriptors_right, matches_right_left, 200);
 
-    marriageMatch(matches_left_right, matches_right_left, 5, matches);
+    marriageMatch(matches_left_right, matches_right_left, matches);
 
+    #ifdef SAVE_ALL
+        Mat img_matches;
+        drawMatches(
+            gray_left,  keypoints_left,              // left image with its keypoints
+            gray_right, keypoints_right,             // right image with its keypoints
+            matches,                                 // matches between the keypoints
+            img_matches,                             // output image
+            Scalar::all(-1),                         // color of matches
+            Scalar::all(-1),                         // color of single points
+            vector<char>(),                          // mask determining which matches are drawn. If empty
+                                                     // all matches are drawn 
+            DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS // Single keypoints will not be drawn
+        );
+        imwrite("matches.png", img_matches);
+    #endif
+
+
+    // Apply quality threshold on the matches
+    // 
+    double max_dist = 0;
+    double min_dist = numeric_limits<double>::max();
+
+    // Quick calculation of max and min distances between keypoints
     for (int i = 0; i < matches.size(); i++) {
-        cout << matches[i].queryIdx << flush << endl;
+        double dist = matches[i].distance;
+
+        if (dist < min_dist) min_dist = dist;
+        if (dist > max_dist) max_dist = dist;
     }
-
-    return 0;
-
-    // #ifdef SAVE_ALL
-    //     Mat img_matches;
-    //     drawMatches(
-    //         gray_left,  keypoints_left,               // left image with its keypoints
-    //         gray_right, keypoints_right,              // right image with its keypoints
-    //         matches,                                 // matches between the keypoints
-    //         img_matches,                             // output image
-    //         Scalar::all(-1),                         // color of matches
-    //         Scalar::all(-1),                         // color of single points
-    //         vector<char>(),                          // mask determining which matches are drawn. If empty
-    //                                                  // all matches are drawn 
-    //         DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS // Single keypoints will not be drawn
-    //     );
-    //     imwrite("matches-0.png", img_matches);
-    // #endif
-
-
-
-    // double max_dist = 0;
-    // double min_dist = numeric_limits<double>::max();
-
-    // // Quick calculation of max and min distances between keypoints
-    // for (int i = 0; i < descriptors_left.rows; i++) {
-    //     double dist = matches[i].distance;
-
-    //     if (dist < min_dist) min_dist = dist;
-    //     if (dist > max_dist) max_dist = dist;
-    // }
   
-    // cout << "Max dist: " << max_dist << endl;
-    // cout << "Min dist: " << min_dist << endl;
+    cout << "Max dist: " << max_dist << endl;
+    cout << "Min dist: " << min_dist << endl;
   
-    // // Draw only "good" matches (i.e. whose distance is less than 2*min_dist,
-    // // or a small arbitary value ( 0.02 ) in the event that min_dist is very
-    // // small)
-    // // radiusMatch() can also be used here.
-  
-    // int j = 0;
-    // for (int i = 0; i < descriptors_left.rows; i++) {
-    //     if (matches[i].distance <= max(8 * min_dist, 0.02)) {
-    //         matches[j++] = matches[i];
-    //     }
-    // }
-    // matches.resize(j);
+    int j = 0;
+    for (int i = 0; i < matches.size(); i++) {
+        if (matches[i].distance <= max(8 * min_dist, 0.02)) {
+            matches[j++] = matches[i];
+        }
+    }
+    matches.resize(j);
 
-    // #ifdef SAVE_ALL
-    //     Mat img_matches_nonmax;
-    //     drawMatches(
-    //         gray_left,  keypoints_left,              // left image with its keypoints
-    //         gray_right, keypoints_right,             // right image with its keypoints
-    //         matches,                                 // matches between the keypoints
-    //         img_matches_nonmax,                      // output image
-    //         Scalar::all(-1),                         // color of matches
-    //         Scalar::all(-1),                         // color of single points
-    //         vector<char>(),                          // mask determining which matches are drawn. If empty
-    //                                                  // all matches are drawn 
-    //         DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS // Single keypoints will not be drawn
-    //     );
-    //     imwrite("matches-maxdist.png", img_matches_nonmax);
-    // #endif
+    #ifdef SAVE_ALL
+        Mat img_matches_nonmax;
+        drawMatches(
+            gray_left,  keypoints_left,              // left image with its keypoints
+            gray_right, keypoints_right,             // right image with its keypoints
+            matches,                                 // matches between the keypoints
+            img_matches_nonmax,                      // output image
+            Scalar::all(-1),                         // color of matches
+            Scalar::all(-1),                         // color of single points
+            vector<char>(),                          // mask determining which matches are drawn. If empty
+                                                     // all matches are drawn 
+            DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS // Single keypoints will not be drawn
+        );
+        imwrite("matches-maxdist.png", img_matches_nonmax);
+    #endif
 
 
     // // homography -- OpenCV implementation
@@ -213,38 +199,38 @@ int main(int argc, char **argv)
 
     // cout  << "Simple rendering done" << endl;
 
-    // // find two homographies
-    // Mat Hl, Hr;
-    // if (verbose) { cout  << "Start another RANSAC ... "; }
-    // my_homographies(keypoints_left, keypoints_right, matches, Hl, Hr);
-    // if (verbose) { cout << "done" << endl; }
+    // find two homographies
+    Mat Hl, Hr;
+    if (verbose) { cout  << "Start another RANSAC ... "; }
+    my_homographies(keypoints_left, keypoints_right, matches, Hl, Hr);
+    if (verbose) { cout << "done" << endl; }
 
-    // // render the output
-    // if (verbose) { cout << "Render ... " << endl; }
-    // render(img_left.rows, img_left.cols, img_left, img_right.rows, img_right.cols, img_right, Hl, Hr, "panorama-maxdist.png");
-    // cout << "done" << endl;
+    // render the output
+    if (verbose) { cout << "Render ... " << endl; }
+    render(img_left.rows, img_left.cols, img_left, img_right.rows, img_right.cols, img_right, Hl, Hr, "panorama-maxdist.png");
+    cout << "done" << endl;
 
 
-    // vector<Point2d> points_left;
-    // vector<Point2d> points_right;
+    vector<Point2d> points_left;
+    vector<Point2d> points_right;
 
-    // for (int i = 0; i < matches.size(); i++) {
-    //     points_left.push_back(keypoints_left[matches[i].queryIdx].pt);
-    //     points_right.push_back(keypoints_right[matches[i].trainIdx].pt);
-    // }
+    for (int i = 0; i < matches.size(); i++) {
+        points_left.push_back(keypoints_left[matches[i].queryIdx].pt);
+        points_right.push_back(keypoints_right[matches[i].trainIdx].pt);
+    }
 
     // // Find the Homography Matrix
-    //  H = findHomography(points_left, points_right, CV_RANSAC);
+    // Mat H = findHomography(points_left, points_right, CV_RANSAC);
 
-    //  // Use the Homography Matrix to warp the images
-    //  cv::Mat panorama;
+    // // Use the Homography Matrix to warp the images
+    // cv::Mat panorama;
 
-    //  warpPerspective(img_left,panorama,H,cv::Size(img_left.cols + img_right.cols, img_left.rows));
+    // warpPerspective(img_left,panorama,H,cv::Size(img_left.cols + img_right.cols, img_left.rows));
 
-    //  cv::Mat half(panorama, cv::Rect(0, 0, img_right.cols, img_right.rows));
-    //  img_right.copyTo(half);
+    // cv::Mat half(panorama, cv::Rect(0, 0, img_right.cols, img_right.rows));
+    // img_right.copyTo(half);
 
-    //  imwrite("panorama.png", panorama);
+    // imwrite("panorama.png", panorama);
 
-     return 0;
+    return 0;
 }
